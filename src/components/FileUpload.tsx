@@ -134,22 +134,25 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
         <p className="text-legal-accent mb-4">Drag and drop your files here, or click to browse</p>
         <p className="text-xs text-gray-500 mb-6">Supported formats: PDF, JPG, PNG, TXT</p>
         
-        <Button
-          as="label"
-          htmlFor="file-upload"
-          variant="outline"
-          className="cursor-pointer"
-        >
-          Browse Files
-          <input 
-            id="file-upload" 
-            type="file" 
-            className="hidden" 
-            multiple 
-            onChange={handleChange}
-            accept=".pdf,.jpg,.jpeg,.png,.txt" 
-          />
-        </Button>
+        {/* Fixed the Button component by removing the "as" prop and using a label separately */}
+        <div className="inline-block">
+          <label htmlFor="file-upload" className="cursor-pointer">
+            <Button
+              variant="outline"
+              className="pointer-events-none"
+            >
+              Browse Files
+            </Button>
+            <input 
+              id="file-upload" 
+              type="file" 
+              className="hidden" 
+              multiple 
+              onChange={handleChange}
+              accept=".pdf,.jpg,.jpeg,.png,.txt" 
+            />
+          </label>
+        </div>
       </div>
       
       {uploadedFiles.length > 0 && (
