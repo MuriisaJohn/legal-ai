@@ -42,8 +42,22 @@ const sampleDocuments = [
   }
 ];
 
+// Define proper document type
+type Document = {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  starred?: boolean;
+};
+
 const Chat = () => {
-  const [activeDocument, setActiveDocument] = useState<typeof sampleDocuments[0] | undefined>(undefined);
+  const [activeDocument, setActiveDocument] = useState<Document | undefined>(undefined);
+
+  // Properly type the handler function
+  const handleSelectDocument = (document: Document) => {
+    setActiveDocument(document);
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-legal-light">
@@ -65,7 +79,7 @@ const Chat = () => {
             <div className="h-[calc(100vh-18rem)]">
               <DocumentList 
                 documents={sampleDocuments} 
-                onSelectDocument={setActiveDocument} 
+                onSelectDocument={handleSelectDocument} 
               />
             </div>
           </div>

@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Search, Trash2, Star, Clock } from 'lucide-react';
 
-type Document = {
+export type Document = {
   id: string;
   name: string;
   type: string;
