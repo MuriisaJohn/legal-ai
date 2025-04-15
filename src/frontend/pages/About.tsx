@@ -1,4 +1,3 @@
-
 import React from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -16,6 +15,38 @@ const About = () => {
             <p className="text-xl text-gray-200 max-w-2xl mx-auto">
               Revolutionizing legal document analysis with advanced artificial intelligence.
             </p>
+          </div>
+        </section>
+        
+        {/* Team */}
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <h2 className="font-serif text-3xl font-bold text-legal-primary mb-4 text-center">Our Leadership</h2>
+            <p className="text-legal-accent max-w-2xl mx-auto text-center mb-12">
+              Meet the visionary behind LegalAI, transforming legal technology in Uganda.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="col-span-full flex flex-col md:flex-row items-center justify-center">
+                <div className="w-64 h-64 mb-6 md:mb-0 md:mr-12 rounded-full overflow-hidden shadow-lg">
+                  <img 
+                    src="/lovable-uploads/21392c7c-7b1a-4b3e-9f6e-4ccd9e91aa98.png" 
+                    alt="Murisa John" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="text-center md:text-left max-w-lg">
+                  <h3 className="font-serif text-2xl font-semibold mb-2 text-legal-primary">Murisa John</h3>
+                  <p className="text-legal-accent mb-2 font-medium">Founder & CEO</p>
+                  <p className="text-gray-600 mb-4">
+                    A passionate legal technologist dedicated to democratizing legal information in Uganda. With over a decade of experience in law and technology, Murisa founded LegalAI to bridge the gap between complex legal systems and everyday citizens.
+                  </p>
+                  <p className="text-gray-600">
+                    His vision is to leverage artificial intelligence to make legal information more accessible, understandable, and actionable for all Ugandans.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
         
@@ -107,57 +138,6 @@ const About = () => {
                 <h3 className="font-serif text-xl font-semibold mb-3 text-legal-primary">Contextual Understanding</h3>
                 <p className="text-legal-accent">
                   Our AI doesn't just extract text—it understands the context and relationships between different parts of legal documents.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-        
-        {/* Team */}
-        <section className="py-16">
-          <div className="container mx-auto px-4">
-            <h2 className="font-serif text-3xl font-bold text-legal-primary mb-4 text-center">Our Team</h2>
-            <p className="text-legal-accent max-w-2xl mx-auto text-center mb-12">
-              LegalAI was founded by a team of legal professionals and AI researchers with a shared vision of transforming legal document analysis.
-            </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="w-32 h-32 rounded-full bg-gray-300 mx-auto mb-4 overflow-hidden">
-                  <div className="w-full h-full bg-legal-primary/20 flex items-center justify-center">
-                    <span className="font-serif text-2xl text-legal-primary">JS</span>
-                  </div>
-                </div>
-                <h3 className="font-serif text-xl font-semibold mb-1">Jennifer Smith</h3>
-                <p className="text-legal-accent mb-2">CEO & Co-Founder</p>
-                <p className="text-sm text-gray-600">
-                  Former partner at a top law firm with 15 years of experience in corporate law.
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-32 h-32 rounded-full bg-gray-300 mx-auto mb-4 overflow-hidden">
-                  <div className="w-full h-full bg-legal-primary/20 flex items-center justify-center">
-                    <span className="font-serif text-2xl text-legal-primary">DR</span>
-                  </div>
-                </div>
-                <h3 className="font-serif text-xl font-semibold mb-1">David Rodriguez</h3>
-                <p className="text-legal-accent mb-2">CTO & Co-Founder</p>
-                <p className="text-sm text-gray-600">
-                  AI researcher with a background in natural language processing and machine learning.
-                </p>
-              </div>
-              
-              <div className="text-center">
-                <div className="w-32 h-32 rounded-full bg-gray-300 mx-auto mb-4 overflow-hidden">
-                  <div className="w-full h-full bg-legal-primary/20 flex items-center justify-center">
-                    <span className="font-serif text-2xl text-legal-primary">MC</span>
-                  </div>
-                </div>
-                <h3 className="font-serif text-xl font-semibold mb-1">Michelle Chen</h3>
-                <p className="text-legal-accent mb-2">Chief Legal Officer</p>
-                <p className="text-sm text-gray-600">
-                  Specializes in legal technology adoption and compliance frameworks.
                 </p>
               </div>
             </div>
