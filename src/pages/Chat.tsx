@@ -62,21 +62,21 @@ const Chat = () => {
   return (
     <div className="flex flex-col min-h-screen bg-legal-light">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col">
         <div className="mb-6 flex items-center">
           <MessageSquare className="mr-3 h-7 w-7 text-legal-secondary" />
           <h1 className="font-serif text-3xl font-bold text-legal-primary">AI Legal Assistant</h1>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1">
           {/* Documents sidebar */}
-          <div className="md:col-span-1 bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="md:col-span-1 bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col">
             <div className="flex items-center mb-4">
               <FileText className="mr-2 h-5 w-5 text-legal-primary" />
               <h2 className="font-serif font-semibold">Your Documents</h2>
             </div>
             
-            <div className="h-[calc(100vh-18rem)]">
+            <div className="flex-1 overflow-y-auto">
               <DocumentList 
                 documents={sampleDocuments} 
                 onSelectDocument={handleSelectDocument} 
@@ -85,7 +85,7 @@ const Chat = () => {
           </div>
           
           {/* Main chat area */}
-          <div className="md:col-span-3 bg-white rounded-lg shadow-sm border border-gray-100 h-[calc(100vh-12rem)]">
+          <div className="md:col-span-3 bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col">
             <ChatInterface activeDocument={activeDocument} />
           </div>
         </div>

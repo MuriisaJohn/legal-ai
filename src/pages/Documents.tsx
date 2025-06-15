@@ -90,12 +90,12 @@ const Documents = () => {
   return (
     <div className="flex flex-col min-h-screen bg-legal-light">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col">
         <h1 className="font-serif text-3xl font-bold text-legal-primary mb-6">Legal Document Center</h1>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
           {/* Sidebar */}
-          <div className="lg:col-span-1 bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+          <div className="lg:col-span-1 bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col">
             {/* Mobile Filters Toggle */}
             <div className="flex justify-between items-center mb-4 lg:hidden">
               <h2 className="font-serif text-xl font-semibold text-legal-primary">Documents</h2>
@@ -107,9 +107,10 @@ const Documents = () => {
                 <ListFilter className="h-4 w-4 mr-2" /> {isMobileFiltersVisible ? 'Hide' : 'Show'} Documents
               </Button>
             </div>
+            <h2 className="font-serif text-xl font-semibold text-legal-primary mb-4 hidden lg:block">Documents</h2>
             
             {/* Document List - Hidden on mobile unless toggled */}
-            <div className={`${isMobileFiltersVisible ? 'block' : 'hidden'} lg:block h-[calc(100vh-20rem)]`}>
+            <div className={`${isMobileFiltersVisible ? 'block' : 'hidden'} lg:block flex-1 overflow-y-auto`}>
               <DocumentList 
                 documents={documents} 
                 onSelectDocument={handleSelectDocument}
@@ -119,18 +120,18 @@ const Documents = () => {
           </div>
           
           {/* Main Content Area */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100">
-            <Tabs value={currentTab} onValueChange={setCurrentTab}>
-              <TabsList className="w-full grid grid-cols-2 rounded-t-lg bg-gray-50 border-b border-gray-200">
+          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col">
+            <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1">
+              <TabsList className="w-full grid grid-cols-2 rounded-t-lg bg-gray-50 border-b border-gray-200 shrink-0">
                 <TabsTrigger value="upload">Upload</TabsTrigger>
                 <TabsTrigger value="chat">AI Review & Chat</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="upload" className="p-6">
+              <TabsContent value="upload" className="p-6 flex-1 overflow-y-auto">
                 <FileUpload onFileUploadComplete={handleFileUploadComplete} />
               </TabsContent>
               
-              <TabsContent value="chat" className="p-0">
+              <TabsContent value="chat" className="p-0 flex-1 flex flex-col">
                 <ChatInterface activeDocument={activeDocument} />
               </TabsContent>
             </Tabs>
