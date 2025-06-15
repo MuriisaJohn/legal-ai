@@ -1,14 +1,9 @@
 
 import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
-import { FileUp, X, Check, AlertCircle } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import FileUploadZone from './FileUploadZone';
+import UploadedFilesList, { UploadedFile } from './UploadedFilesList';
+import { readFileContent } from '@/utils/fileReader';
 
 type FileUploadProps = {
   onFileUploadComplete?: (fileId: string, fileData: any) => void;
@@ -17,8 +12,7 @@ type FileUploadProps = {
 const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedFiles, setUploadedFiles] = useState<Array<{ name: string; status: 'uploading' | 'success' | 'error'; progress: number }>>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
 
   const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -46,71 +40,6 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
     
     if (e.target.files && e.target.files.length > 0) {
       handleFiles(e.target.files);
-    }
-  };
-
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
-      let fullText = '';
-      
-      // Extract text from each page
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
-      }
-      
-      return fullText.trim();
-    } catch (error) {
-      console.error('Error extracting PDF text:', error);
-      throw new Error('Failed to extract text from PDF file');
-    }
-  };
-
-  const readFileContent = async (file: File): Promise<string> => {
-    try {
-      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        console.log('Processing PDF file:', file.name);
-        return await extractTextFromPDF(file);
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const result = e.target?.result;
-            if (typeof result === 'string') {
-              resolve(result);
-            } else {
-              reject(new Error('Failed to read text file'));
-            }
-          };
-          reader.onerror = () => reject(new Error('Error reading text file'));
-          reader.readAsText(file);
-        });
-      } else {
-        // For other file types, try to read as text
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const result = e.target?.result;
-            if (typeof result === 'string') {
-              resolve(result);
-            } else {
-              reject(new Error('Failed to read file content'));
-            }
-          };
-          reader.onerror = () => reject(new Error('Error reading file'));
-          reader.readAsText(file);
-        });
-      }
-    } catch (error) {
-      console.error('Error reading file content:', error);
-      throw error;
     }
   };
 
@@ -203,71 +132,20 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
 
   return (
     <div className="w-full">
-      <div 
-        className={`border-2 border-dashed rounded-lg p-8 text-center ${dragActive ? 'border-legal-primary bg-legal-primary/5' : 'border-gray-300'}`}
+      <FileUploadZone
+        dragActive={dragActive}
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
-      >
-        <FileUp className="mx-auto h-12 w-12 text-legal-primary/70 mb-4" />
-        <h3 className="font-serif text-lg font-semibold mb-2 text-legal-primary">Upload Legal Documents</h3>
-        <p className="text-legal-accent mb-4">Drag and drop your files here, or click to browse</p>
-        <p className="text-xs text-gray-500 mb-6">Supported formats: PDF, JPG, PNG, TXT</p>
-        
-        <label htmlFor="file-upload" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 cursor-pointer">
-          Browse Files
-          <input 
-            id="file-upload" 
-            type="file" 
-            className="hidden" 
-            multiple 
-            onChange={handleChange}
-            accept=".pdf,.jpg,.jpeg,.png,.txt" 
-          />
-        </label>
-      </div>
+        onChange={handleChange}
+      />
       
-      {uploadedFiles.length > 0 && (
-        <div className="mt-6 space-y-3">
-          <h4 className="font-medium text-sm text-gray-700">
-            {uploading ? 'Processing Files' : 'Processed Files'}
-          </h4>
-          {uploadedFiles.map((file, index) => (
-            <Card key={index} className="overflow-hidden">
-              <CardContent className="p-3 flex items-center">
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium truncate">{file.name}</span>
-                    <button 
-                      onClick={() => removeFile(index)} 
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  
-                  {file.status === 'uploading' && (
-                    <Progress value={file.progress} className="h-2" data-status="uploading" />
-                  )}
-                  
-                  {file.status === 'success' && (
-                    <div className="flex items-center text-green-600 text-xs">
-                      <Check className="h-3 w-3 mr-1" /> Ready for AI analysis
-                    </div>
-                  )}
-                  
-                  {file.status === 'error' && (
-                    <div className="flex items-center text-red-600 text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" /> Processing failed
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      <UploadedFilesList
+        files={uploadedFiles}
+        uploading={uploading}
+        onRemoveFile={removeFile}
+      />
     </div>
   );
 };
