@@ -28,6 +28,26 @@ type ChatInterfaceProps = {
   activeDocument?: Document;
 };
 
+const formatMessageContent = (content: string): JSX.Element => {
+  // Remove # characters
+  let formattedContent = content.replace(/#/g, '');
+  
+  // Split by **text** pattern and process
+  const parts = formattedContent.split(/(\*\*.*?\*\*)/g);
+  
+  return (
+    <div className="whitespace-pre-wrap">
+      {parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          const boldText = part.slice(2, -2);
+          return <strong key={index}>{boldText}</strong>;
+        }
+        return part;
+      })}
+    </div>
+  );
+};
+
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -43,7 +63,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: `I'm your legal assistant powered by DeepSeek AI.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
+          content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
           sender: 'ai',
           timestamp: new Date()
         }
@@ -52,7 +72,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: "I'm your legal assistant powered by DeepSeek AI. Upload a document or ask me a question about Ugandan law.",
+          content: "I'm your legal assistant. Upload a document or ask me a question about Ugandan law.",
           sender: 'ai',
           timestamp: new Date()
         }
@@ -334,7 +354,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                         : 'bg-gray-100 text-gray-900'
                   }`}>
                     {message.isError && <AlertCircle className="h-4 w-4 text-red-500 mb-1" />}
-                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {formatMessageContent(message.content)}
                     <div className={`text-xs mt-1 ${
                       message.sender === 'user' ? 'text-gray-300' : 'text-gray-500'
                     }`}>
@@ -347,7 +367,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                 <div className="flex justify-start">
                   <div className="bg-gray-100 rounded-lg p-4 flex items-center space-x-2 max-w-[80%]">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>DeepSeek AI is analyzing {activeDocument ? `"${activeDocument.name}"` : "your question"}...</span>
+                    <span>AI is analyzing {activeDocument ? `"${activeDocument.name}"` : "your question"}...</span>
                   </div>
                 </div>
               )}
@@ -395,10 +415,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                     <p className="text-sm text-legal-dark">
                       This document is ready for AI-powered analysis. Use the "Summarize Document" button or ask specific questions about its contents in the chat.
                     </p>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-legal-accent">Powered by</h4>
-                    <p className="text-sm text-legal-primary font-medium">DeepSeek AI via OpenRouter</p>
                   </div>
                 </div>
               </CardContent>
