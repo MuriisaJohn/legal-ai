@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
@@ -339,7 +340,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         </div>
 
         <TabsContent value="chat" className="flex-1 flex flex-col space-y-4 p-4 overflow-hidden">
-          <div className="flex-1 overflow-y-auto">
+          <ScrollArea className="flex-1 pr-4">
             <div className="space-y-4 pb-4">
               {messages.map((message) => (
                 <div
@@ -373,7 +374,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
               )}
               <div ref={messagesEndRef} />
             </div>
-          </div>
+          </ScrollArea>
 
           <div className="flex gap-2">
             <Input
