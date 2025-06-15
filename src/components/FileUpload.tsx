@@ -5,6 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "@/components/ui/use-toast";
 import { FileUp, X, Check, AlertCircle } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 type FileUploadProps = {
   onFileUploadComplete?: (fileId: string, fileData: any) => void;
@@ -45,32 +49,69 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
     }
   };
 
-  const readFileContent = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
-      reader.onload = (e) => {
-        const result = e.target?.result;
-        if (typeof result === 'string') {
-          resolve(result);
-        } else {
-          reject(new Error('Failed to read file content'));
-        }
-      };
+      let fullText = '';
       
-      reader.onerror = () => reject(new Error('Error reading file'));
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n';
+      }
       
-      if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
-        reader.readAsText(file);
-      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        // For PDF files, we'll read as text (this is a simplified approach)
-        // In a real application, you'd use a PDF parsing library
-        reader.readAsText(file);
+      return fullText.trim();
+    } catch (error) {
+      console.error('Error extracting PDF text:', error);
+      throw new Error('Failed to extract text from PDF file');
+    }
+  };
+
+  const readFileContent = async (file: File): Promise<string> => {
+    try {
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        console.log('Processing PDF file:', file.name);
+        return await extractTextFromPDF(file);
+      } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result;
+            if (typeof result === 'string') {
+              resolve(result);
+            } else {
+              reject(new Error('Failed to read text file'));
+            }
+          };
+          reader.onerror = () => reject(new Error('Error reading text file'));
+          reader.readAsText(file);
+        });
       } else {
         // For other file types, try to read as text
-        reader.readAsText(file);
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const result = e.target?.result;
+            if (typeof result === 'string') {
+              resolve(result);
+            } else {
+              reject(new Error('Failed to read file content'));
+            }
+          };
+          reader.onerror = () => reject(new Error('Error reading file'));
+          reader.readAsText(file);
+        });
       }
-    });
+    } catch (error) {
+      console.error('Error reading file content:', error);
+      throw error;
+    }
   };
 
   const handleFiles = async (files: FileList) => {
@@ -91,8 +132,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
       const fileIndex = uploadedFiles.length + i;
       
       try {
+        console.log(`Processing file: ${file.name}, Type: ${file.type}`);
+        
         // Read file content
         const content = await readFileContent(file);
+        
+        console.log(`Extracted content length: ${content.length} characters`);
+        console.log(`Content preview: ${content.substring(0, 200)}...`);
         
         // Simulate upload progress
         let progress = 0;
@@ -114,8 +160,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
             );
             
             toast({
-              title: "File Uploaded Successfully",
-              description: `${file.name} has been uploaded and is ready for AI review.`,
+              title: "File Processed Successfully",
+              description: `${file.name} has been processed and is ready for AI analysis.`,
               variant: "default",
             });
             
@@ -141,8 +187,8 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
         );
         
         toast({
-          title: "Upload Failed",
-          description: `There was an error processing ${file.name}.`,
+          title: "Processing Failed",
+          description: `There was an error processing ${file.name}. ${error instanceof Error ? error.message : 'Unknown error'}`,
           variant: "destructive",
         });
       }
@@ -207,7 +253,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
                   
                   {file.status === 'success' && (
                     <div className="flex items-center text-green-600 text-xs">
-                      <Check className="h-3 w-3 mr-1" /> Ready for AI review
+                      <Check className="h-3 w-3 mr-1" /> Ready for AI analysis
                     </div>
                   )}
                   
