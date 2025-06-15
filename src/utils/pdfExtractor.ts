@@ -1,8 +1,8 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker using CDN approach for better compatibility
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker using Vite's static asset approach
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/node_modules/pdfjs-dist/build/pdf.worker.min.js';
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
