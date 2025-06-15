@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -163,18 +164,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       return;
     }
 
+    // Check if document has content
+    if (!activeDocument.content || activeDocument.content.trim() === '') {
+      toast({
+        title: "No Document Content",
+        description: "The selected document doesn't have extractable text content. Please upload a text-based document.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
     
+    // Add a user message to show what's being summarized
+    const summaryRequestMessage: Message = {
+      id: `msg-${Date.now()}-user`,
+      content: `Summarize "${activeDocument.name}"`,
+      sender: 'user',
+      timestamp: new Date()
+    };
+    
+    setMessages(prev => [...prev, summaryRequestMessage]);
+    
     try {
+      console.log('Summarizing document:', activeDocument.name);
+      console.log('Document content length:', activeDocument.content.length);
+      
       const summary = await summarizeDocument(
         activeDocument.name, 
-        activeDocument.content || null, 
+        activeDocument.content, 
         apiKey
       );
       
       const summaryMessage: Message = {
         id: `msg-${Date.now()}-ai`,
-        content: `**Document Summary for "${activeDocument.name}":**\n\n${summary}`,
+        content: `Document Summary for "${activeDocument.name}": ${summary}`,
         sender: 'ai',
         timestamp: new Date()
       };

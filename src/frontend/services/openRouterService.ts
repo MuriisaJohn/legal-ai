@@ -1,4 +1,3 @@
-
 export interface OpenRouterMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -82,21 +81,32 @@ export const summarizeDocument = async (
   documentContent: string | null,
   apiKey: string
 ): Promise<string> => {
+  if (!documentContent || documentContent.trim() === '') {
+    throw new Error('No document content available to summarize');
+  }
+
+  console.log('Processing document for summary:', documentName);
+  console.log('Content preview:', documentContent.substring(0, 200) + '...');
+
   const messages: OpenRouterMessage[] = [
     {
       role: 'system',
-      content: 'You are a legal AI assistant specializing in Ugandan law. Provide detailed, accurate summaries of legal documents and answer questions about Ugandan legal matters.'
+      content: 'You are a legal AI assistant specializing in Ugandan law. Provide detailed, accurate summaries of legal documents. Focus on key provisions, important parties, dates, obligations, and any relevant legal implications under Ugandan law.'
     },
     {
       role: 'user',
-      content: documentContent 
-        ? `Please provide a comprehensive summary of this document "${documentName}":
+      content: `Please provide a comprehensive summary of this document "${documentName}":
 
 DOCUMENT CONTENT:
 ${documentContent}
 
-Focus on key legal provisions, important dates, parties involved, and any relevant Ugandan law context.`
-        : `Please provide a comprehensive summary of the document "${documentName}". Focus on key legal provisions, important dates, parties involved, and any relevant Ugandan law context.`
+Please include:
+1. Document type and purpose
+2. Key parties involved
+3. Important dates and deadlines
+4. Main obligations and rights
+5. Key legal provisions
+6. Any relevant Ugandan law context`
     }
   ];
 
