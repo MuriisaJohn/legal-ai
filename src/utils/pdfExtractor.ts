@@ -1,18 +1,30 @@
 
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker using a more reliable approach
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.js',
+  import.meta.url
+).toString();
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
+    console.log('Starting PDF text extraction for:', file.name);
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    console.log('ArrayBuffer created, size:', arrayBuffer.byteLength);
+    
+    const pdf = await pdfjsLib.getDocument({ 
+      data: arrayBuffer,
+      useSystemFonts: true
+    }).promise;
+    
+    console.log('PDF loaded, pages:', pdf.numPages);
     
     let fullText = '';
     
     // Extract text from each page
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      console.log(`Processing page ${pageNum}/${pdf.numPages}`);
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
@@ -21,9 +33,10 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       fullText += pageText + '\n';
     }
     
+    console.log('PDF text extraction completed, total length:', fullText.length);
     return fullText.trim();
   } catch (error) {
     console.error('Error extracting PDF text:', error);
-    throw new Error('Failed to extract text from PDF file');
+    throw new Error(`Failed to extract text from PDF file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 };
