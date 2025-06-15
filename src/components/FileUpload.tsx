@@ -46,72 +46,61 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
   const handleFiles = async (files: FileList) => {
     setUploading(true);
     
-    // Add new files to our state
     const newFiles = Array.from(files).map(file => ({
       name: file.name,
       status: 'uploading' as const,
       progress: 0
     }));
     
-    setUploadedFiles([...uploadedFiles, ...newFiles]);
+    const startIndex = uploadedFiles.length;
+    setUploadedFiles(prev => [...prev, ...newFiles]);
     
-    // Process each file
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const fileIndex = uploadedFiles.length + i;
+    const processingPromises = Array.from(files).map(async (file, index) => {
+      const fileIndex = startIndex + index;
       
+      const onProgress = (progress: number) => {
+        setUploadedFiles(prev => 
+          prev.map((f, idx) => 
+            idx === fileIndex ? { ...f, progress: Math.floor(progress) } : f
+          )
+        );
+      };
+
       try {
         console.log(`Processing file: ${file.name}, Type: ${file.type}`);
+        onProgress(5); // Initial small progress
         
-        // Read file content
-        const content = await readFileContent(file);
+        const content = await readFileContent(file, onProgress);
         
         console.log(`Extracted content length: ${content.length} characters`);
-        console.log(`Content preview: ${content.substring(0, 200)}...`);
         
-        // Simulate upload progress
-        let progress = 0;
-        const interval = setInterval(() => {
-          progress += 20;
-          setUploadedFiles(prev => 
-            prev.map((f, idx) => 
-              idx === fileIndex ? { ...f, progress } : f
-            )
-          );
-          
-          if (progress >= 100) {
-            clearInterval(interval);
-            
-            setUploadedFiles(prev => 
-              prev.map((f, idx) => 
-                idx === fileIndex ? { ...f, status: 'success' } : f
-              )
-            );
-            
-            toast({
-              title: "File Processed Successfully",
-              description: `${file.name} has been processed and is ready for AI analysis.`,
-              variant: "default",
-            });
-            
-            // Pass file content to the callback
-            if (onFileUploadComplete) {
-              onFileUploadComplete(`file-${Date.now()}-${i}`, {
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                content: content
-              });
-            }
-          }
-        }, 150);
+        onProgress(100);
+        setUploadedFiles(prev => 
+          prev.map((f, idx) => 
+            idx === fileIndex ? { ...f, status: 'success' } : f
+          )
+        );
         
+        toast({
+          title: "File Processed Successfully",
+          description: `${file.name} is ready for AI analysis.`,
+          variant: "default",
+        });
+        
+        if (onFileUploadComplete) {
+          onFileUploadComplete(`file-${Date.now()}-${index}`, {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            content: content
+          });
+        }
       } catch (error) {
         console.error('Error processing file:', error);
         
         setUploadedFiles(prev => 
           prev.map((f, idx) => 
-            idx === fileIndex ? { ...f, status: 'error' } : f
+            idx === fileIndex ? { ...f, status: 'error', progress: 0 } : f
           )
         );
         
@@ -121,7 +110,9 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
           variant: "destructive",
         });
       }
-    }
+    });
+
+    await Promise.all(processingPromises);
     
     setUploading(false);
   };

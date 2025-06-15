@@ -6,7 +6,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
 console.log('PDF.js worker configured with static path:', pdfjsLib.GlobalWorkerOptions.workerSrc);
 
-export const extractTextFromPDF = async (file: File): Promise<string> => {
+export const extractTextFromPDF = async (file: File, onProgress?: (percent: number) => void): Promise<string> => {
   try {
     console.log('=== PDF EXTRACTION START ===');
     console.log('File details:', {
@@ -27,11 +27,17 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
     });
     
     loadingTask.onProgress = (progress) => {
-      console.log('PDF loading progress:', Math.round((progress.loaded / progress.total) * 100) + '%');
+      const percent = Math.round((progress.loaded / progress.total) * 100);
+      console.log('PDF loading progress:', percent + '%');
+      if (onProgress) {
+        // Document loading is ~80% of the work.
+        onProgress(Math.min(percent * 0.8, 80));
+      }
     };
     
     const pdf = await loadingTask.promise;
     console.log('PDF loaded successfully! Pages:', pdf.numPages);
+    if (onProgress) onProgress(80);
     
     let fullText = '';
     
@@ -49,6 +55,12 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
           
         fullText += pageText + '\n';
         
+        if (onProgress) {
+          // Page processing is the remaining 20%.
+          const pageProcessPercent = 80 + (pageNum / pdf.numPages) * 20;
+          onProgress(Math.min(pageProcessPercent, 100));
+        }
+
       } catch (pageError) {
         console.error(`Error processing page ${pageNum}:`, pageError);
         // Continue with other pages even if one fails
