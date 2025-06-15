@@ -1,12 +1,9 @@
-
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Vite-specific way to import the worker and get its URL. This is the expert-recommended approach for Vite.
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
-
-// Configure the worker path for PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
-console.log('PDF.js worker configured with modern Vite approach:', pdfjsWorker);
+// The worker is now copied to the build output directory by `vite-plugin-static-copy`.
+// We can reference it directly by its path.
+pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
+console.log('PDF.js worker configured with static path:', pdfjsLib.GlobalWorkerOptions.workerSrc);
 
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
