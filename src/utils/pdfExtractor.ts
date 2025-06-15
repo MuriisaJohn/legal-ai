@@ -1,3 +1,4 @@
+
 import * as pdfjsLib from 'pdfjs-dist';
 
 // The worker is now copied to the build output directory by `vite-plugin-static-copy`.
@@ -23,7 +24,6 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
       data: arrayBuffer,
       useSystemFonts: true,
       isEvalSupported: false,
-      useWorkerFetch: false
     });
     
     loadingTask.onProgress = (progress) => {
