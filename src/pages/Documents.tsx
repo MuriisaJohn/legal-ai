@@ -9,8 +9,18 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, ListFilter } from 'lucide-react';
 
+// Enhanced document type to include content
+type DocumentWithContent = {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  starred?: boolean;
+  content?: string;
+};
+
 // Sample document data
-const sampleDocuments = [
+const sampleDocuments: DocumentWithContent[] = [
   { 
     id: 'doc1', 
     name: 'Service Agreement.pdf', 
@@ -46,17 +56,18 @@ const sampleDocuments = [
 ];
 
 const Documents = () => {
-  const [documents, setDocuments] = useState(sampleDocuments);
-  const [activeDocument, setActiveDocument] = useState<typeof sampleDocuments[0] | undefined>(undefined);
+  const [documents, setDocuments] = useState<DocumentWithContent[]>(sampleDocuments);
+  const [activeDocument, setActiveDocument] = useState<DocumentWithContent | undefined>(undefined);
   const [isMobileFiltersVisible, setIsMobileFiltersVisible] = useState(false);
   const [currentTab, setCurrentTab] = useState<string>('upload');
 
   const handleFileUploadComplete = (fileId: string, fileData: any) => {
-    const newDocument = {
+    const newDocument: DocumentWithContent = {
       id: fileId,
       name: fileData.name,
       type: fileData.type.split('/')[1].toUpperCase(),
-      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      content: fileData.content
     };
     
     setDocuments(prev => [newDocument, ...prev]);
@@ -64,12 +75,12 @@ const Documents = () => {
     setActiveDocument(newDocument);
   };
 
-  const handleSelectDocument = (document: typeof sampleDocuments[0]) => {
+  const handleSelectDocument = (document: DocumentWithContent) => {
     setActiveDocument(document);
     setCurrentTab('chat');
   };
 
-  const handleDeleteDocument = (document: typeof sampleDocuments[0]) => {
+  const handleDeleteDocument = (document: DocumentWithContent) => {
     setDocuments(prev => prev.filter(doc => doc.id !== document.id));
     if (activeDocument?.id === document.id) {
       setActiveDocument(undefined);
@@ -112,7 +123,7 @@ const Documents = () => {
             <Tabs value={currentTab} onValueChange={setCurrentTab}>
               <TabsList className="w-full grid grid-cols-2 rounded-t-lg bg-gray-50 border-b border-gray-200">
                 <TabsTrigger value="upload">Upload</TabsTrigger>
-                <TabsTrigger value="chat">Chat Assistant</TabsTrigger>
+                <TabsTrigger value="chat">AI Review & Chat</TabsTrigger>
               </TabsList>
               
               <TabsContent value="upload" className="p-6">

@@ -45,7 +45,35 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
     }
   };
 
-  const handleFiles = (files: FileList) => {
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        const result = e.target?.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Failed to read file content'));
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Error reading file'));
+      
+      if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
+        reader.readAsText(file);
+      } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        // For PDF files, we'll read as text (this is a simplified approach)
+        // In a real application, you'd use a PDF parsing library
+        reader.readAsText(file);
+      } else {
+        // For other file types, try to read as text
+        reader.readAsText(file);
+      }
+    });
+  };
+
+  const handleFiles = async (files: FileList) => {
     setUploading(true);
     
     // Add new files to our state
@@ -57,63 +85,70 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
     
     setUploadedFiles([...uploadedFiles, ...newFiles]);
     
-    // Simulate file upload with progress for each file
-    Array.from(files).forEach((file, index) => {
-      const fileIndex = uploadedFiles.length + index;
+    // Process each file
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileIndex = uploadedFiles.length + i;
       
-      // In a real implementation, this would be an actual API call
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadedFiles(prev => 
-          prev.map((f, i) => 
-            i === fileIndex ? { ...f, progress } : f
-          )
-        );
+      try {
+        // Read file content
+        const content = await readFileContent(file);
         
-        if (progress >= 100) {
-          clearInterval(interval);
-          
-          // Simulate success/error (90% success rate)
-          const isSuccess = Math.random() < 0.9;
-          
+        // Simulate upload progress
+        let progress = 0;
+        const interval = setInterval(() => {
+          progress += 20;
           setUploadedFiles(prev => 
-            prev.map((f, i) => 
-              i === fileIndex ? { ...f, status: isSuccess ? 'success' : 'error' } : f
+            prev.map((f, idx) => 
+              idx === fileIndex ? { ...f, progress } : f
             )
           );
           
-          if (isSuccess) {
+          if (progress >= 100) {
+            clearInterval(interval);
+            
+            setUploadedFiles(prev => 
+              prev.map((f, idx) => 
+                idx === fileIndex ? { ...f, status: 'success' } : f
+              )
+            );
+            
             toast({
               title: "File Uploaded Successfully",
-              description: `${file.name} has been uploaded and processed.`,
+              description: `${file.name} has been uploaded and is ready for AI review.`,
               variant: "default",
             });
             
-            // Mock file ID for the callback
+            // Pass file content to the callback
             if (onFileUploadComplete) {
-              onFileUploadComplete(`file-${Date.now()}`, {
+              onFileUploadComplete(`file-${Date.now()}-${i}`, {
                 name: file.name,
                 size: file.size,
-                type: file.type
+                type: file.type,
+                content: content
               });
             }
-          } else {
-            toast({
-              title: "Upload Failed",
-              description: `There was an error uploading ${file.name}.`,
-              variant: "destructive",
-            });
           }
-          
-          // Check if all files are done
-          const allDone = document.querySelectorAll('[data-status="uploading"]').length === 0;
-          if (allDone) {
-            setUploading(false);
-          }
-        }
-      }, 300);
-    });
+        }, 150);
+        
+      } catch (error) {
+        console.error('Error processing file:', error);
+        
+        setUploadedFiles(prev => 
+          prev.map((f, idx) => 
+            idx === fileIndex ? { ...f, status: 'error' } : f
+          )
+        );
+        
+        toast({
+          title: "Upload Failed",
+          description: `There was an error processing ${file.name}.`,
+          variant: "destructive",
+        });
+      }
+    }
+    
+    setUploading(false);
   };
 
   const removeFile = (index: number) => {
@@ -150,7 +185,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
       {uploadedFiles.length > 0 && (
         <div className="mt-6 space-y-3">
           <h4 className="font-medium text-sm text-gray-700">
-            {uploading ? 'Uploading Files' : 'Uploaded Files'}
+            {uploading ? 'Processing Files' : 'Processed Files'}
           </h4>
           {uploadedFiles.map((file, index) => (
             <Card key={index} className="overflow-hidden">
@@ -172,13 +207,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUploadComplete }) => {
                   
                   {file.status === 'success' && (
                     <div className="flex items-center text-green-600 text-xs">
-                      <Check className="h-3 w-3 mr-1" /> Upload complete
+                      <Check className="h-3 w-3 mr-1" /> Ready for AI review
                     </div>
                   )}
                   
                   {file.status === 'error' && (
                     <div className="flex items-center text-red-600 text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" /> Upload failed
+                      <AlertCircle className="h-3 w-3 mr-1" /> Processing failed
                     </div>
                   )}
                 </div>

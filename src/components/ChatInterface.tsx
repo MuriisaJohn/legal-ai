@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Settings } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
-import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument } from '@/frontend/services/openRouterService';
+import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
 
 type Document = {
   id: string;
@@ -14,6 +13,7 @@ type Document = {
   type?: string;
   date?: string;
   starred?: boolean;
+  content?: string;
 };
 
 type Message = {
@@ -39,10 +39,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   // Add a welcome message if there are no messages
   useEffect(() => {
     if (messages.length === 0 && activeDocument) {
+      const hasContent = activeDocument.content ? " I can analyze its content and " : " ";
       setMessages([
         {
           id: 'welcome',
-          content: `I'm your legal assistant powered by DeepSeek AI. Ask me any questions about "${activeDocument.name}" or Ugandan law in general.`,
+          content: `I'm your legal assistant powered by DeepSeek AI.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
           sender: 'ai',
           timestamp: new Date()
         }
@@ -96,6 +97,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       const responseText = await answerQuestion(
         userMessage.content,
         activeDocument?.name || null,
+        activeDocument?.content || null,
         apiKey
       );
       
@@ -143,7 +145,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     setIsLoading(true);
     
     try {
-      const summary = await summarizeDocument(activeDocument.name, apiKey);
+      const summary = await summarizeDocument(
+        activeDocument.name, 
+        activeDocument.content || null, 
+        apiKey
+      );
       
       const summaryMessage: Message = {
         id: `msg-${Date.now()}-ai`,
@@ -169,6 +175,56 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       toast({
         title: "Error",
         description: "Failed to summarize document. Please check your API key and try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzeDocument = async () => {
+    if (!activeDocument || !activeDocument.content || !apiKey.trim()) {
+      toast({
+        title: "Requirements Missing",
+        description: "Please select a document with content and enter your API key.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const analysis = await analyzeDocumentContent(
+        activeDocument.name,
+        activeDocument.content,
+        apiKey
+      );
+      
+      const analysisMessage: Message = {
+        id: `msg-${Date.now()}-ai`,
+        content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n${analysis}`,
+        sender: 'ai',
+        timestamp: new Date()
+      };
+      
+      setMessages(prev => [...prev, analysisMessage]);
+    } catch (error) {
+      console.error("Error analyzing document:", error);
+      
+      const errorMessage: Message = {
+        id: `msg-${Date.now()}-ai`,
+        content: error instanceof Error ? error.message : "Failed to analyze the document. Please try again.",
+        sender: 'ai',
+        timestamp: new Date(),
+        isError: true
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
+      
+      toast({
+        title: "Error",
+        description: "Failed to analyze document. Please check your API key and try again.",
         variant: "destructive"
       });
     } finally {
@@ -230,14 +286,26 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
             
             <div className="flex gap-2">
               {activeDocument && (
-                <Button
-                  onClick={handleSummarizeDocument}
-                  disabled={isLoading || !apiKey.trim()}
-                  variant="outline"
-                  size="sm"
-                >
-                  Summarize Document
-                </Button>
+                <>
+                  <Button
+                    onClick={handleSummarizeDocument}
+                    disabled={isLoading || !apiKey.trim()}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Summarize
+                  </Button>
+                  {activeDocument.content && (
+                    <Button
+                      onClick={handleAnalyzeDocument}
+                      disabled={isLoading || !apiKey.trim()}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Full Analysis
+                    </Button>
+                  )}
+                </>
               )}
               <Button
                 onClick={() => setShowApiKeyInput(!showApiKeyInput)}
