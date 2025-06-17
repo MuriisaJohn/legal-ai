@@ -1,11 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, FileText, MessageSquare, AlertCircle, Settings } from 'lucide-react';
+import { Send, Loader2, FileText, MessageSquare, AlertCircle, Settings, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
 
@@ -42,7 +41,7 @@ const formatMessageContent = (content: string): JSX.Element => {
       {parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           const boldText = part.slice(2, -2);
-          return <strong key={index}>{boldText}</strong>;
+          return <strong key={index} className="font-semibold">{boldText}</strong>;
         }
         return part;
       })}
@@ -164,7 +163,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       return;
     }
 
-    // Check if document has content
     if (!activeDocument.content || activeDocument.content.trim() === '') {
       toast({
         title: "No Document Content",
@@ -176,7 +174,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
     setIsLoading(true);
     
-    // Add a user message to show what's being summarized
     const summaryRequestMessage: Message = {
       id: `msg-${Date.now()}-user`,
       content: `Summarize "${activeDocument.name}"`,
@@ -288,10 +285,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     <div className="flex flex-col h-[calc(100vh-12rem)]">
       {/* API Key Input Section */}
       {showApiKeyInput && (
-        <div className="p-4 bg-yellow-50 border-b border-yellow-200">
-          <div className="flex items-center gap-2 mb-2">
-            <Settings className="h-4 w-4 text-yellow-600" />
-            <span className="text-sm font-medium text-yellow-800">OpenRouter API Configuration</span>
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+          <div className="flex items-center gap-2 mb-3">
+            <Settings className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">OpenRouter API Configuration</span>
           </div>
           <div className="flex gap-2">
             <Input
@@ -299,24 +296,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
               placeholder="Enter your OpenRouter API key (sk-or-v1-...)"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              className="flex-1"
+              className="flex-1 bg-white border-blue-200 focus:border-blue-400"
             />
             <Button
               onClick={() => setShowApiKeyInput(false)}
               variant="outline"
               size="sm"
+              className="border-blue-200 hover:bg-blue-50"
             >
               Done
             </Button>
           </div>
-          <p className="text-xs text-yellow-700 mt-1">
+          <p className="text-xs text-blue-700 mt-2">
             Your API key is stored locally and not sent to our servers.
           </p>
         </div>
       )}
 
       <Tabs defaultValue="chat" className="flex-1 flex flex-col">
-        <div className="border-b p-2 bg-white">
+        <div className="border-b bg-white px-4 py-3">
           <div className="flex justify-between items-center">
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -337,6 +335,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                     disabled={isLoading || !apiKey.trim()}
                     variant="outline"
                     size="sm"
+                    className="hover:bg-blue-50"
                   >
                     Summarize
                   </Button>
@@ -346,6 +345,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                       disabled={isLoading || !apiKey.trim()}
                       variant="outline"
                       size="sm"
+                      className="hover:bg-blue-50"
                     >
                       Full Analysis
                     </Button>
@@ -356,6 +356,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                 onClick={() => setShowApiKeyInput(!showApiKeyInput)}
                 variant="outline"
                 size="sm"
+                className="hover:bg-gray-50"
               >
                 <Settings className="h-4 w-4" />
               </Button>
@@ -363,36 +364,89 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
           </div>
         </div>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col space-y-4 p-4 overflow-hidden">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4 pb-4">
+        <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden">
+          {/* Chat Messages Container */}
+          <ScrollArea className="flex-1 px-4 py-6">
+            <div className="space-y-6 max-w-4xl mx-auto">
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex items-start gap-3 ${
+                    message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
+                  }`}
                 >
-                  <div className={`max-w-[80%] rounded-lg p-4 ${
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                     message.sender === 'user' 
                       ? 'bg-legal-primary text-white' 
                       : message.isError 
-                        ? 'bg-red-100 border border-red-300 text-gray-900' 
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'bg-red-100 text-red-600' 
+                        : 'bg-blue-100 text-blue-600'
                   }`}>
-                    {message.isError && <AlertCircle className="h-4 w-4 text-red-500 mb-1" />}
-                    {formatMessageContent(message.content)}
-                    <div className={`text-xs mt-1 ${
-                      message.sender === 'user' ? 'text-gray-300' : 'text-gray-500'
+                    {message.sender === 'user' ? (
+                      <User className="h-4 w-4" />
+                    ) : message.isError ? (
+                      <AlertCircle className="h-4 w-4" />
+                    ) : (
+                      <Bot className="h-4 w-4" />
+                    )}
+                  </div>
+
+                  {/* Message Bubble */}
+                  <div className={`flex flex-col max-w-[70%] ${
+                    message.sender === 'user' ? 'items-end' : 'items-start'
+                  }`}>
+                    {/* Sender Label */}
+                    <div className={`text-xs font-medium mb-1 px-1 ${
+                      message.sender === 'user' ? 'text-legal-primary' : 'text-blue-600'
+                    }`}>
+                      {message.sender === 'user' ? 'You' : 'AI Assistant'}
+                    </div>
+
+                    {/* Message Content */}
+                    <div className={`rounded-2xl px-4 py-3 shadow-sm ${
+                      message.sender === 'user' 
+                        ? 'bg-legal-primary text-white rounded-tr-sm' 
+                        : message.isError 
+                          ? 'bg-red-50 border border-red-200 text-gray-900 rounded-tl-sm' 
+                          : 'bg-white border border-gray-200 text-gray-900 rounded-tl-sm'
+                    }`}>
+                      {formatMessageContent(message.content)}
+                    </div>
+
+                    {/* Timestamp */}
+                    <div className={`text-xs mt-1 px-1 ${
+                      message.sender === 'user' ? 'text-gray-500' : 'text-gray-500'
                     }`}>
                       {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
               ))}
+
+              {/* Typing Indicator */}
               {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-lg p-4 flex items-center space-x-2 max-w-[80%]">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>AI is analyzing {activeDocument ? `"${activeDocument.name}"` : "your question"}...</span>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <Bot className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <div className="text-xs font-medium mb-1 px-1 text-blue-600">
+                      AI Assistant
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                      <div className="flex items-center space-x-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
+                        <span className="text-sm text-gray-600">
+                          {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -400,30 +454,38 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
             </div>
           </ScrollArea>
 
-          <div className="flex gap-2">
-            <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={activeDocument 
-                ? `Ask about "${activeDocument.name}" or Ugandan law...` 
-                : "Ask a question about Ugandan law..."}
-              className="flex-1"
-              disabled={isLoading}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={inputValue.trim() === '' || isLoading}
-              className="bg-legal-primary hover:bg-legal-primary/90"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
+          {/* Message Input */}
+          <div className="border-t bg-white px-4 py-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex gap-3 items-end">
+                <div className="flex-1 relative">
+                  <Input
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={activeDocument 
+                      ? `Ask about "${activeDocument.name}" or Ugandan law...` 
+                      : "Ask a question about Ugandan law..."}
+                    className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm"
+                    disabled={isLoading}
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={inputValue.trim() === '' || isLoading}
+                    size="sm"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl bg-legal-primary hover:bg-legal-primary/90 h-8 w-8 p-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
         <TabsContent value="document" className="flex-1 p-4 overflow-y-auto">
           {activeDocument ? (
-            <Card>
+            <Card className="max-w-2xl mx-auto">
               <CardContent className="p-6">
                 <h3 className="font-serif text-xl font-semibold mb-4">{activeDocument.name}</h3>
                 <div className="space-y-4">
