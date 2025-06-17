@@ -73,7 +73,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: "I'm your legal assistant. Upload a document or ask me a question about Ugandan law.",
+          content: "Hello! How can I assist you with Ugandan legal matters today? Whether you have questions about laws, regulations, court procedures, or any other legal topic in Uganda, feel free to ask.\n\nFor example, you might want to know about:\n- Land law (e.g., mailo land, freehold, leasehold)\n- Business regulations (e.g., company registration, taxation)\n- Criminal law (e.g., offenses, bail procedures)\n- Family law (e.g., marriage, divorce, inheritance)\n- Constitutional rights (e.g., human rights protections)\n\nLet me know how I can help!",
           sender: 'ai',
           timestamp: new Date()
         }
@@ -282,10 +282,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)]">
+    <div className="flex flex-col h-full max-h-[70vh] bg-white rounded-lg shadow-sm border border-gray-100">
       {/* API Key Input Section */}
       {showApiKeyInput && (
-        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 rounded-t-lg">
           <div className="flex items-center gap-2 mb-3">
             <Settings className="h-4 w-4 text-blue-600" />
             <span className="text-sm font-medium text-blue-800">OpenRouter API Configuration</span>
@@ -313,8 +313,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         </div>
       )}
 
-      <Tabs defaultValue="chat" className="flex-1 flex flex-col">
-        <div className="border-b bg-white px-4 py-3">
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
+        <div className="border-b bg-white px-4 py-3 rounded-t-lg">
           <div className="flex justify-between items-center">
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="chat" className="flex items-center gap-2">
@@ -364,120 +364,118 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
           </div>
         </div>
 
-        <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden">
-          {/* Chat Messages Container */}
-          <ScrollArea className="flex-1 px-4 py-6">
-            <div className="space-y-6 max-w-4xl mx-auto">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex items-start gap-3 ${
-                    message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                    message.sender === 'user' 
-                      ? 'bg-legal-primary text-white' 
-                      : message.isError 
-                        ? 'bg-red-100 text-red-600' 
-                        : 'bg-blue-100 text-blue-600'
-                  }`}>
-                    {message.sender === 'user' ? (
-                      <User className="h-4 w-4" />
-                    ) : message.isError ? (
-                      <AlertCircle className="h-4 w-4" />
-                    ) : (
-                      <Bot className="h-4 w-4" />
-                    )}
-                  </div>
-
-                  {/* Message Bubble */}
-                  <div className={`flex flex-col max-w-[70%] ${
-                    message.sender === 'user' ? 'items-end' : 'items-start'
-                  }`}>
-                    {/* Sender Label */}
-                    <div className={`text-xs font-medium mb-1 px-1 ${
-                      message.sender === 'user' ? 'text-legal-primary' : 'text-blue-600'
-                    }`}>
-                      {message.sender === 'user' ? 'You' : 'AI Assistant'}
-                    </div>
-
-                    {/* Message Content */}
-                    <div className={`rounded-2xl px-4 py-3 shadow-sm ${
+        <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Chat Messages Container - Fixed Height with Scroll */}
+          <div className="flex-1 overflow-hidden bg-gray-50">
+            <ScrollArea className="h-full">
+              <div className="p-4 space-y-4">
+                {messages.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex items-start gap-3 max-w-full ${
+                      message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
+                    }`}
+                  >
+                    {/* Avatar */}
+                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       message.sender === 'user' 
-                        ? 'bg-legal-primary text-white rounded-tr-sm' 
+                        ? 'bg-legal-primary text-white' 
                         : message.isError 
-                          ? 'bg-red-50 border border-red-200 text-gray-900 rounded-tl-sm' 
-                          : 'bg-white border border-gray-200 text-gray-900 rounded-tl-sm'
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-blue-100 text-blue-600'
                     }`}>
-                      {formatMessageContent(message.content)}
+                      {message.sender === 'user' ? (
+                        <User className="h-4 w-4" />
+                      ) : message.isError ? (
+                        <AlertCircle className="h-4 w-4" />
+                      ) : (
+                        <Bot className="h-4 w-4" />
+                      )}
                     </div>
 
-                    {/* Timestamp */}
-                    <div className={`text-xs mt-1 px-1 ${
-                      message.sender === 'user' ? 'text-gray-500' : 'text-gray-500'
+                    {/* Message Bubble */}
+                    <div className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${
+                      message.sender === 'user' ? 'items-end' : 'items-start'
                     }`}>
-                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                      {/* Sender Label */}
+                      <div className={`text-xs font-medium mb-1 px-1 ${
+                        message.sender === 'user' ? 'text-legal-primary' : 'text-blue-600'
+                      }`}>
+                        {message.sender === 'user' ? 'You' : 'AI Assistant'}
+                      </div>
 
-              {/* Typing Indicator */}
-              {isLoading && (
-                <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                    <Bot className="h-4 w-4" />
-                  </div>
-                  <div className="flex flex-col items-start">
-                    <div className="text-xs font-medium mb-1 px-1 text-blue-600">
-                      AI Assistant
-                    </div>
-                    <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
-                      <div className="flex items-center space-x-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                        </div>
-                        <span className="text-sm text-gray-600">
-                          {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
-                        </span>
+                      {/* Message Content */}
+                      <div className={`rounded-2xl px-4 py-3 shadow-sm border ${
+                        message.sender === 'user' 
+                          ? 'bg-legal-primary text-white rounded-tr-sm border-legal-primary' 
+                          : message.isError 
+                            ? 'bg-red-50 border-red-200 text-gray-900 rounded-tl-sm' 
+                            : 'bg-white border-gray-200 text-gray-900 rounded-tl-sm'
+                      }`}>
+                        {formatMessageContent(message.content)}
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="text-xs mt-1 px-1 text-gray-500">
+                        {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
+                ))}
 
-          {/* Message Input */}
-          <div className="border-t bg-white px-4 py-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex gap-3 items-end">
-                <div className="flex-1 relative">
-                  <Input
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={activeDocument 
-                      ? `Ask about "${activeDocument.name}" or Ugandan law...` 
-                      : "Ask a question about Ugandan law..."}
-                    className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm"
-                    disabled={isLoading}
-                  />
-                  <Button
-                    onClick={handleSendMessage}
-                    disabled={inputValue.trim() === '' || isLoading}
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl bg-legal-primary hover:bg-legal-primary/90 h-8 w-8 p-0"
-                  >
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
+                {/* Typing Indicator */}
+                {isLoading && (
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Bot className="h-4 w-4" />
+                    </div>
+                    <div className="flex flex-col items-start">
+                      <div className="text-xs font-medium mb-1 px-1 text-blue-600">
+                        AI Assistant
+                      </div>
+                      <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                        <div className="flex items-center space-x-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <div className="flex space-x-1">
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Message Input - Pinned to Bottom */}
+          <div className="border-t bg-white px-4 py-4 rounded-b-lg">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1 relative">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={activeDocument 
+                    ? `Ask about "${activeDocument.name}" or Ugandan law...` 
+                    : "Ask a question about Ugandan law..."}
+                  className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm"
+                  disabled={isLoading}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={inputValue.trim() === '' || isLoading}
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl bg-legal-primary hover:bg-legal-primary/90 h-8 w-8 p-0"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </div>
