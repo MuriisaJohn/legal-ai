@@ -92,8 +92,8 @@
 
   body {
     @apply bg-legal-light text-legal-dark font-sans;
-    /* Add padding bottom to account for fixed input */
-    padding-bottom: 80px;
+    /* Reduced padding bottom to match the actual input height */
+    padding-bottom: 64px;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -107,13 +107,4 @@
 
 .chat-message-ai {
   @apply bg-white border border-gray-200 rounded-t-2xl rounded-br-2xl p-4 max-w-[80%] self-start shadow-sm;
-}
-
-/* Ensure fixed input doesn't interfere with scrolling */
-.fixed-input-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
 }

@@ -27,7 +27,7 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="min-h-screen pb-20"> {/* Add padding bottom to prevent content overlap */}
+          <div className="min-h-screen pb-16"> {/* Reduced padding bottom */}
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/documents" element={<Documents />} />

@@ -35,15 +35,15 @@ const FixedBottomInput: React.FC<FixedBottomInputProps> = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex gap-3 items-end max-w-4xl mx-auto">
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex gap-3 items-center max-w-4xl mx-auto">
           <div className="flex-1 relative">
             <Input
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
-              className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm text-base"
+              className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-2.5 shadow-sm text-base h-12"
               disabled={disabled}
             />
             <Button
