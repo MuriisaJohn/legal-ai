@@ -30,12 +30,9 @@ type ChatInterfaceProps = {
 };
 
 const formatMessageContent = (content: string): JSX.Element => {
-  // Remove # characters
   let formattedContent = content.replace(/#/g, '');
-  
-  // Split by **text** pattern and process
   const parts = formattedContent.split(/(\*\*.*?\*\*)/g);
-  
+
   return (
     <div className="whitespace-pre-wrap">
       {parts.map((part, index) => {
@@ -56,7 +53,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
-  // Add a welcome message if there are no messages
   useEffect(() => {
     if (messages.length === 0 && activeDocument) {
       const hasContent = activeDocument.content ? " I can analyze its content and " : " ";
@@ -81,16 +77,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   }, [activeDocument]);
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll if messagesEndRef is actually rendered and available
+    if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
-    
+
     if (!apiKey) {
       toast({
         title: "API Key Missing",
@@ -99,19 +94,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       });
       return;
     }
-    
-    // Add user message
+
     const userMessage: Message = {
       id: `msg-${Date.now()}-user`,
       content: inputValue,
       sender: 'user',
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
-    
+
     try {
       const responseText = await answerQuestion(
         userMessage.content,
@@ -119,18 +113,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         activeDocument?.content || null,
         apiKey
       );
-      
+
       const aiMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: responseText,
         sender: 'ai',
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("Error generating response:", error);
-      
+
       const errorMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: error instanceof Error ? error.message : "I apologize, but I encountered an error while processing your request. Please try again.",
@@ -138,9 +132,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         timestamp: new Date(),
         isError: true
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
-      
+
       toast({
         title: "Error",
         description: "Failed to generate a response. Please check the API configuration.",
@@ -171,34 +165,34 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     }
 
     setIsLoading(true);
-    
+
     const summaryRequestMessage: Message = {
       id: `msg-${Date.now()}-user`,
       content: `Summarize "${activeDocument.name}"`,
       sender: 'user',
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, summaryRequestMessage]);
-    
+
     try {
       const summary = await summarizeDocument(
-        activeDocument.name, 
-        activeDocument.content, 
+        activeDocument.name,
+        activeDocument.content,
         apiKey
       );
-      
+
       const summaryMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: `Document Summary for "${activeDocument.name}": ${summary}`,
         sender: 'ai',
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, summaryMessage]);
     } catch (error) {
       console.error("Error summarizing document:", error);
-      
+
       const errorMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: error instanceof Error ? error.message : "Failed to summarize the document. Please try again.",
@@ -206,9 +200,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         timestamp: new Date(),
         isError: true
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
-      
+
       toast({
         title: "Error",
         description: "Failed to summarize document. Please check the API configuration.",
@@ -230,25 +224,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     }
 
     setIsLoading(true);
-    
+
     try {
       const analysis = await analyzeDocumentContent(
         activeDocument.name,
         activeDocument.content,
         apiKey
       );
-      
+
       const analysisMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n${analysis}`,
         sender: 'ai',
         timestamp: new Date()
       };
-      
+
       setMessages(prev => [...prev, analysisMessage]);
     } catch (error) {
       console.error("Error analyzing document:", error);
-      
+
       const errorMessage: Message = {
         id: `msg-${Date.now()}-ai`,
         content: error instanceof Error ? error.message : "Failed to analyze the document. Please try again.",
@@ -256,9 +250,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         timestamp: new Date(),
         isError: true
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
-      
+
       toast({
         title: "Error",
         description: "Failed to analyze document. Please check the API configuration.",
@@ -277,21 +271,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   };
 
   return (
-    <div className="flex flex-col h-full max-h-[70vh] bg-white rounded-lg shadow-sm border border-gray-100">
+    // Outer container with a defined height (e.g., h-[600px] or max-h-[80vh]).
+    // This constrains the overall chat widget.
+    <div className="flex flex-col h-[600px] bg-white rounded-lg shadow-lg border border-gray-100">
+      {/* Tabs component, flex-1 to take available height, flex-col for its children */}
       <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
-        <div className="border-b bg-white px-4 py-3 rounded-t-lg">
+        {/* Header/Tab Navigation area - fixed height provided by content/padding */}
+        <div className="border-b bg-gray-50 px-4 py-3 rounded-t-lg">
           <div className="flex justify-between items-center">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="chat" className="flex items-center gap-2">
+            <TabsList className="grid w-full max-w-md grid-cols-2 bg-gray-100">
+              <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-legal-primary data-[state=active]:text-white data-[state=active]:shadow-sm">
                 <MessageSquare className="h-4 w-4" />
                 <span>Chat</span>
               </TabsTrigger>
-              <TabsTrigger value="document" className="flex items-center gap-2">
+              <TabsTrigger value="document" className="flex items-center gap-2 data-[state=active]:bg-legal-primary data-[state=active]:text-white data-[state=active]:shadow-sm">
                 <FileText className="h-4 w-4" />
                 <span>Document Info</span>
               </TabsTrigger>
             </TabsList>
-            
+
             <div className="flex gap-2">
               {activeDocument && (
                 <>
@@ -300,7 +298,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                     disabled={isLoading}
                     variant="outline"
                     size="sm"
-                    className="hover:bg-blue-50"
+                    className="hover:bg-legal-light text-legal-primary border-legal-primary"
                   >
                     Summarize
                   </Button>
@@ -310,7 +308,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                       disabled={isLoading}
                       variant="outline"
                       size="sm"
-                      className="hover:bg-blue-50"
+                      className="hover:bg-legal-light text-legal-primary border-legal-primary"
                     >
                       Full Analysis
                     </Button>
@@ -321,83 +319,90 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
           </div>
         </div>
 
+        {/* Chat Content Tab - This area is flex-1, taking remaining height, and is a flex container for its children */}
         <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Chat Messages Container - Fixed Height with Scroll */}
-          <div className="flex-1 overflow-hidden bg-gray-50">
+          {/* Messages display area - This div takes up all available space within TabsContent, pushing the input down.
+              `overflow-hidden` is crucial here because `ScrollArea` inside it will handle the scrolling. */}
+          <div className="flex-1 overflow-hidden bg-white p-4">
+            {/* ScrollArea - It needs its parent (`.flex-1.overflow-hidden`) to be constrained in height
+                for its own internal scrolling to activate. `h-full` ensures it uses all available height. */}
             <ScrollArea className="h-full">
-              <div className="p-4 space-y-4">
+              <div className="space-y-6 pb-4">
                 {messages.map((message) => (
                   <div
                     key={message.id}
                     className={`flex items-start gap-3 max-w-full ${
-                      message.sender === 'user' ? 'flex-row-reverse' : 'flex-row'
+                      message.sender === 'user' ? 'justify-end' : 'justify-start'
                     }`}
                   >
                     {/* Avatar */}
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                      message.sender === 'user' 
-                        ? 'bg-legal-primary text-white' 
-                        : message.isError 
-                          ? 'bg-red-100 text-red-600' 
-                          : 'bg-blue-100 text-blue-600'
-                    }`}>
-                      {message.sender === 'user' ? (
-                        <User className="h-4 w-4" />
-                      ) : message.isError ? (
-                        <AlertCircle className="h-4 w-4" />
-                      ) : (
-                        <Bot className="h-4 w-4" />
-                      )}
-                    </div>
+                    {message.sender === 'ai' && (
+                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                        message.isError
+                          ? 'bg-red-500 text-white'
+                          : 'bg-legal-primary text-white'
+                      }`}>
+                        {message.isError ? (
+                          <AlertCircle className="h-4 w-4" />
+                        ) : (
+                          <Bot className="h-4 w-4" />
+                        )}
+                      </div>
+                    )}
 
-                    {/* Message Bubble */}
-                    <div className={`flex flex-col max-w-[85%] sm:max-w-[70%] ${
-                      message.sender === 'user' ? 'items-end' : 'items-start'
-                    }`}>
+                    <div className={`flex flex-col ${
+                        message.sender === 'user' ? 'items-end' : 'items-start'
+                    } max-w-[80%] sm:max-w-[65%]`}>
                       {/* Sender Label */}
                       <div className={`text-xs font-medium mb-1 px-1 ${
-                        message.sender === 'user' ? 'text-legal-primary' : 'text-blue-600'
+                        message.sender === 'user' ? 'text-gray-600' : 'text-gray-600'
                       }`}>
                         {message.sender === 'user' ? 'You' : 'AI Assistant'}
                       </div>
 
                       {/* Message Content */}
-                      <div className={`rounded-2xl px-4 py-3 shadow-sm border ${
-                        message.sender === 'user' 
-                          ? 'bg-legal-primary text-white rounded-tr-sm border-legal-primary' 
-                          : message.isError 
-                            ? 'bg-red-50 border-red-200 text-gray-900 rounded-tl-sm' 
-                            : 'bg-white border-gray-200 text-gray-900 rounded-tl-sm'
+                      <div className={`rounded-xl px-4 py-3 shadow-md border ${
+                        message.sender === 'user'
+                          ? 'bg-legal-primary text-white border-legal-primary'
+                          : message.isError
+                            ? 'bg-red-100 border-red-300 text-red-900'
+                            : 'bg-blue-50 border-blue-200 text-gray-800'
                       }`}>
                         {formatMessageContent(message.content)}
                       </div>
 
                       {/* Timestamp */}
-                      <div className="text-xs mt-1 px-1 text-gray-500">
+                      <div className={`text-xs mt-1 px-1 text-gray-500 ${
+                        message.sender === 'user' ? 'text-right' : 'text-left'
+                      }`}>
                         {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
+
+                    {message.sender === 'user' && (
+                        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gray-300 text-gray-700`}>
+                            <User className="h-4 w-4" />
+                        </div>
+                    )}
                   </div>
                 ))}
 
                 {/* Typing Indicator */}
                 {isLoading && (
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-legal-primary text-white flex items-center justify-center">
                       <Bot className="h-4 w-4" />
                     </div>
                     <div className="flex flex-col items-start">
-                      <div className="text-xs font-medium mb-1 px-1 text-blue-600">
+                      <div className="text-xs font-medium mb-1 px-1 text-gray-600">
                         AI Assistant
                       </div>
-                      <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 shadow-md">
                         <div className="flex items-center space-x-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                            <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                          </div>
+                          <Loader2 className="h-4 w-4 animate-spin text-legal-primary" />
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
                           <span className="text-sm text-gray-600">
                             {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
                           </span>
@@ -411,25 +416,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
             </ScrollArea>
           </div>
 
-          {/* Message Input - Pinned to Bottom */}
-          <div className="border-t bg-white px-4 py-4 rounded-b-lg">
+          {/* Message Input - This is the footer area, it will stay at the bottom. */}
+          <div className="border-t bg-gray-50 px-4 py-4 rounded-b-lg">
             <div className="flex gap-3 items-end">
               <div className="flex-1 relative">
                 <Input
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={activeDocument 
-                    ? `Ask about "${activeDocument.name}" or Ugandan law...` 
+                  placeholder={activeDocument
+                    ? `Ask about "${activeDocument.name}" or Ugandan law...`
                     : "Ask a question about Ugandan law..."}
-                  className="rounded-2xl border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm"
+                  className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white"
                   disabled={isLoading}
                 />
                 <Button
                   onClick={handleSendMessage}
                   disabled={inputValue.trim() === '' || isLoading}
                   size="sm"
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-xl bg-legal-primary hover:bg-legal-primary/90 h-8 w-8 p-0"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 rounded-full bg-legal-primary hover:bg-legal-primary/90 h-9 w-9 p-0"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
@@ -438,23 +443,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
           </div>
         </TabsContent>
 
-        <TabsContent value="document" className="flex-1 p-4 overflow-y-auto">
+        {/* Document Info Tab - Also needs to be scrollable if content exceeds height */}
+        <TabsContent value="document" className="flex-1 p-4 overflow-y-auto bg-gray-50">
           {activeDocument ? (
-            <Card className="max-w-2xl mx-auto">
+            <Card className="max-w-2xl mx-auto shadow-md">
               <CardContent className="p-6">
-                <h3 className="font-serif text-xl font-semibold mb-4">{activeDocument.name}</h3>
+                <h3 className="font-serif text-xl font-semibold mb-4 text-legal-dark">{activeDocument.name}</h3>
                 <div className="space-y-4">
                   <div>
                     <h4 className="text-sm font-medium text-legal-accent">Document Type</h4>
-                    <p>Legal Document</p>
+                    <p className="text-gray-700">Legal Document</p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-legal-accent">Uploaded</h4>
-                    <p>{activeDocument.date || "Recently"}</p>
+                    <p className="text-gray-700">{activeDocument.date || "Recently"}</p>
                   </div>
                   <div>
                     <h4 className="text-sm font-medium text-legal-accent">AI Analysis</h4>
-                    <p className="text-sm text-legal-dark">
+                    <p className="text-gray-600">
                       This document is ready for AI-powered analysis. Use the "Summarize Document" button or ask specific questions about its contents in the chat.
                     </p>
                   </div>
@@ -463,9 +469,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
             </Card>
           ) : (
             <div className="text-center py-10">
-              <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
-              <h3 className="font-serif text-lg font-semibold mb-2">No Document Selected</h3>
-              <p className="text-legal-accent">Upload or select a document to view its details and get AI-powered analysis.</p>
+              <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="font-serif text-lg font-semibold mb-2 text-gray-700">No Document Selected</h3>
+              <p className="text-gray-500">Upload or select a document to view its details and get AI-powered analysis.</p>
             </div>
           )}
         </TabsContent>
