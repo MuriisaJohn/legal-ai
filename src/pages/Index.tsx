@@ -1,9 +1,9 @@
-
 import React from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Hero from '@/components/Hero';
 import Features from '@/components/Features';
+import MetaTags from '@/components/MetaTags';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Gavel, Users, Globe, ChevronRight } from 'lucide-react';
@@ -11,6 +11,7 @@ import { Gavel, Users, Globe, ChevronRight } from 'lucide-react';
 const Index = () => {
   return (
     <div className="flex flex-col min-h-screen bg-legal-light">
+      <MetaTags />
       <Navbar />
       <main className="flex-1">
         <Hero />

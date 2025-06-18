@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, FileText, MessageSquare, AlertCircle, Settings, Bot, User } from 'lucide-react';
+import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
 
@@ -53,9 +53,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
   // Add a welcome message if there are no messages
   useEffect(() => {
@@ -73,7 +72,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: "Hello! How can I assist you with Ugandan legal matters today? Whether you have questions about laws, regulations, court procedures, or any other legal topic in Uganda, feel free to ask.\n\nFor example, you might want to know about:\n- Land law (e.g., mailo land, freehold, leasehold)\n- Business regulations (e.g., company registration, taxation)\n- Criminal law (e.g., offenses, bail procedures)\n- Family law (e.g., marriage, divorce, inheritance)\n- Constitutional rights (e.g., human rights protections)\n\nLet me know how I can help!",
+          content: "Welcome! I'm your Ugandan legal assistant. I can help with questions about land law, business regulations, criminal law, family law, and constitutional rights. How may I assist you today?",
           sender: 'ai',
           timestamp: new Date()
         }
@@ -92,13 +91,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
     
-    if (!apiKey.trim()) {
+    if (!apiKey) {
       toast({
-        title: "API Key Required",
-        description: "Please enter your OpenRouter API key to use the AI assistant.",
+        title: "API Key Missing",
+        description: "The OpenRouter API key is not configured. Please check your environment variables.",
         variant: "destructive"
       });
-      setShowApiKeyInput(true);
       return;
     }
     
@@ -145,7 +143,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       
       toast({
         title: "Error",
-        description: "Failed to generate a response. Please check your API key and try again.",
+        description: "Failed to generate a response. Please check the API configuration.",
         variant: "destructive"
       });
     } finally {
@@ -154,10 +152,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   };
 
   const handleSummarizeDocument = async () => {
-    if (!activeDocument || !apiKey.trim()) {
+    if (!activeDocument) {
       toast({
-        title: "Requirements Missing",
-        description: "Please select a document and enter your API key.",
+        title: "No Document Selected",
+        description: "Please select a document to summarize.",
         variant: "destructive"
       });
       return;
@@ -184,9 +182,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     setMessages(prev => [...prev, summaryRequestMessage]);
     
     try {
-      console.log('Summarizing document:', activeDocument.name);
-      console.log('Document content length:', activeDocument.content.length);
-      
       const summary = await summarizeDocument(
         activeDocument.name, 
         activeDocument.content, 
@@ -216,7 +211,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       
       toast({
         title: "Error",
-        description: "Failed to summarize document. Please check your API key and try again.",
+        description: "Failed to summarize document. Please check the API configuration.",
         variant: "destructive"
       });
     } finally {
@@ -225,10 +220,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
   };
 
   const handleAnalyzeDocument = async () => {
-    if (!activeDocument || !activeDocument.content || !apiKey.trim()) {
+    if (!activeDocument || !activeDocument.content) {
       toast({
         title: "Requirements Missing",
-        description: "Please select a document with content and enter your API key.",
+        description: "Please select a document with content to analyze.",
         variant: "destructive"
       });
       return;
@@ -266,7 +261,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       
       toast({
         title: "Error",
-        description: "Failed to analyze document. Please check your API key and try again.",
+        description: "Failed to analyze document. Please check the API configuration.",
         variant: "destructive"
       });
     } finally {
@@ -283,36 +278,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
   return (
     <div className="flex flex-col h-full max-h-[70vh] bg-white rounded-lg shadow-sm border border-gray-100">
-      {/* API Key Input Section */}
-      {showApiKeyInput && (
-        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 rounded-t-lg">
-          <div className="flex items-center gap-2 mb-3">
-            <Settings className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">OpenRouter API Configuration</span>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              type="password"
-              placeholder="Enter your OpenRouter API key (sk-or-v1-...)"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="flex-1 bg-white border-blue-200 focus:border-blue-400"
-            />
-            <Button
-              onClick={() => setShowApiKeyInput(false)}
-              variant="outline"
-              size="sm"
-              className="border-blue-200 hover:bg-blue-50"
-            >
-              Done
-            </Button>
-          </div>
-          <p className="text-xs text-blue-700 mt-2">
-            Your API key is stored locally and not sent to our servers.
-          </p>
-        </div>
-      )}
-
       <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
         <div className="border-b bg-white px-4 py-3 rounded-t-lg">
           <div className="flex justify-between items-center">
@@ -332,7 +297,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                 <>
                   <Button
                     onClick={handleSummarizeDocument}
-                    disabled={isLoading || !apiKey.trim()}
+                    disabled={isLoading}
                     variant="outline"
                     size="sm"
                     className="hover:bg-blue-50"
@@ -342,7 +307,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                   {activeDocument.content && (
                     <Button
                       onClick={handleAnalyzeDocument}
-                      disabled={isLoading || !apiKey.trim()}
+                      disabled={isLoading}
                       variant="outline"
                       size="sm"
                       className="hover:bg-blue-50"
@@ -352,14 +317,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                   )}
                 </>
               )}
-              <Button
-                onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                variant="outline"
-                size="sm"
-                className="hover:bg-gray-50"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
             </div>
           </div>
         </div>
