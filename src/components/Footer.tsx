@@ -40,7 +40,7 @@ const Footer = () => {
           <div>
             <h4 className="font-serif font-bold text-legal-secondary mb-4">Contact</h4>
             <ul className="space-y-2 text-sm">
-              <li>Email: contact@legalai.com</li>
+              <li>Email: murisajon@gmail.com</li>
               <li>Phone: (555) 123-4567</li>
             </ul>
           </div>
