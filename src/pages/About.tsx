@@ -128,7 +128,7 @@ const About = () => {
                     <span className="font-serif text-2xl text-legal-primary">JS</span>
                   </div>
                 </div>
-                <h3 className="font-serif text-xl font-semibold mb-1">Jennifer Smith</h3>
+                <h3 className="font-serif text-xl font-semibold mb-1">Muriisa John</h3>
                 <p className="text-legal-accent mb-2">CEO & Co-Founder</p>
                 <p className="text-sm text-gray-600">
                   Former partner at a top law firm with 15 years of experience in corporate law.

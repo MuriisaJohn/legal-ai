@@ -29,10 +29,11 @@ const About = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div className="col-span-full flex flex-col md:flex-row items-center justify-center">
                 <div className="w-64 h-64 mb-6 md:mb-0 md:mr-12 rounded-full overflow-hidden shadow-lg">
-                  <img 
-                    src="/lovable-uploads/21392c7c-7b1a-4b3e-9f6e-4ccd9e91aa98.png" 
-                    alt="Murisa John" 
-                    className="w-full h-full object-cover"
+<img
+                    src="/lovable-uploads/me.jpg"
+                    alt="Murisa John"
+className="w-full aspect-square object-contain"
+                    loading="lazy"
                   />
                 </div>
                 <div className="text-center md:text-left max-w-lg">
