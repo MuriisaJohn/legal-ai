@@ -1,4 +1,3 @@
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap');
 
 @tailwind base;
@@ -93,6 +92,8 @@
 
   body {
     @apply bg-legal-light text-legal-dark font-sans;
+    /* Reduced padding bottom to match the actual input height */
+    padding-bottom: 64px;
   }
 
   h1, h2, h3, h4, h5, h6 {
