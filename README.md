@@ -71,3 +71,16 @@ Yes it is!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Environment Variables
+
+This project uses environment variables for configuration. Since this is a private repository, the `.env` file is included in version control for team convenience. However, if you need to modify these variables:
+
+1. The main environment file is `.env`
+2. There's also an `.env.example` file showing the required variables
+3. For development, you can create a `.env.local` file which will override `.env` (this file is git-ignored)
+
+Current environment variables:
+- `VITE_OPENROUTER_API_KEY`: Your OpenRouter API key for AI functionality
+
+⚠️ Note: While we keep the .env file in version control for this private repo, be cautious when sharing access to the repository as it contains sensitive information.
