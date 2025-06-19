@@ -6,11 +6,10 @@ interface MetaTagsProps {
   url?: string;
 }
 
-const MetaTags = ({
-  title = 'Legal AI Assistant - Intelligent Legal Document Analysis',
-  description = 'Transform your legal document workflow with AI-powered analysis, instant insights, and multilingual support. Save time and make better decisions with our advanced legal assistant.',
+const MetaTags = ({  title = 'LegalAI',
+  description = 'AI-powered lawyer - Transform your legal document workflow with intelligent analysis and instant insights.',
   image = '/logo.svg',
-  url = 'https://legal-ai-assistant-api.vercel.app', // Replace with your actual domain
+  url = 'https://legalai.app'
 }: MetaTagsProps) => {
   return (
     <Helmet>
