@@ -2,15 +2,14 @@ import { Helmet } from 'react-helmet';
 
 interface MetaTagsProps {
   title?: string;
-  description?: string;
-  image?: string;
+  description?: string;  image?: string;
   url?: string;
 }
 
 const MetaTags = ({
   title = 'Legal AI Assistant - Intelligent Legal Document Analysis',
   description = 'Transform your legal document workflow with AI-powered analysis, instant insights, and multilingual support. Save time and make better decisions with our advanced legal assistant.',
-  image = '/logo.png', // Make sure to add your logo image in the public folder
+  image = '/logo.svg',
   url = 'https://legal-ai-assistant-api.vercel.app', // Replace with your actual domain
 }: MetaTagsProps) => {
   return (
