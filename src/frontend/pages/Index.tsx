@@ -41,8 +41,8 @@ const Index = () => {
                     SJ
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium">Sarah Johnson</p>
-                    <p className="text-sm text-gray-500">Corporate Attorney, Smith & Partners</p>
+                    <p className="font-medium">Sarah Kakala</p>
+                    <p className="text-sm text-gray-500">LDC</p>
                   </div>
                 </div>
               </div>
@@ -63,7 +63,7 @@ const Index = () => {
                     MB
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium">Michael Brown</p>
+                    <p className="font-medium">Michael Mwaga</p>
                     <p className="text-sm text-gray-500">Legal Researcher, Legal Tech Solutions</p>
                   </div>
                 </div>
@@ -85,7 +85,7 @@ const Index = () => {
                     EL
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium">Elena Lopez</p>
+                    <p className="font-medium">Elena </p>
                     <p className="text-sm text-gray-500">Partner, International Legal Associates</p>
                   </div>
                 </div>
@@ -108,7 +108,7 @@ const Index = () => {
                 </Button>
               </Link>
               <Link to="/documents">
-                <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+                <Button size="lg" className="bg-legal-secondary text-legal-dark hover:bg-legal-secondary/90 font-medium">
                   Try a Demo <ChevronRight className="ml-1 h-4 w-4" />
                 </Button>
               </Link>
