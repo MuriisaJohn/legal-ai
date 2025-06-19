@@ -34,25 +34,7 @@ const sampleDocuments: DocumentWithContent[] = [
     type: 'PDF', 
     date: 'April 9, 2025' 
   },
-  { 
-    id: 'doc3', 
-    name: 'Legal Brief - Jones vs Smith.pdf', 
-    type: 'PDF', 
-    date: 'April 7, 2025' 
-  },
-  { 
-    id: 'doc4', 
-    name: 'Rental Agreement.pdf', 
-    type: 'PDF', 
-    date: 'April 5, 2025',
-    starred: true
-  },
-  { 
-    id: 'doc5', 
-    name: 'Terms of Service.txt', 
-    type: 'TXT', 
-    date: 'April 3, 2025' 
-  }
+  
 ];
 
 const Documents = () => {
