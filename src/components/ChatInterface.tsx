@@ -31,7 +31,8 @@ type ChatInterfaceProps = {
 
 const formatMessageContent = (content: string): JSX.Element => {
   let formattedContent = content.replace(/#/g, '');
-  const parts = formattedContent.split(/(\*\*.*?\*\*)/g);
+  // Split by **bold** and *italic*
+  const parts = formattedContent.split(/(\*\*.*?\*\*|\*.*?\*)/g);
 
   return (
     <div className="whitespace-pre-wrap">
@@ -39,6 +40,10 @@ const formatMessageContent = (content: string): JSX.Element => {
         if (part.startsWith('**') && part.endsWith('**')) {
           const boldText = part.slice(2, -2);
           return <strong key={index} className="font-semibold">{boldText}</strong>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+          const italicText = part.slice(1, -1);
+          return <span key={index} className="italic text-legal-accent">{italicText}</span>;
         }
         return part;
       })}
