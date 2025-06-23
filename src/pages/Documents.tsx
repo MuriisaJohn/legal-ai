@@ -1,10 +1,8 @@
-
 import React, { useState } from 'react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import DocumentList from '@/components/DocumentList';
 import FileUpload from '@/components/FileUpload';
-import ChatInterface from '@/components/ChatInterface';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, ListFilter } from 'lucide-react';
@@ -53,13 +51,12 @@ const Documents = () => {
     };
     
     setDocuments(prev => [newDocument, ...prev]);
-    setCurrentTab('chat');
-    setActiveDocument(newDocument);
+    setCurrentTab('upload');
   };
 
   const handleSelectDocument = (document: DocumentWithContent) => {
     setActiveDocument(document);
-    setCurrentTab('chat');
+    setCurrentTab('upload');
   };
 
   const handleDeleteDocument = (document: DocumentWithContent) => {
@@ -104,17 +101,12 @@ const Documents = () => {
           {/* Main Content Area */}
           <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col">
             <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1">
-              <TabsList className="w-full grid grid-cols-2 rounded-t-lg bg-gray-50 border-b border-gray-200 shrink-0">
-                <TabsTrigger value="upload">Upload</TabsTrigger>
-                <TabsTrigger value="chat">AI Review & Chat</TabsTrigger>
+              <TabsList className="w-full grid grid-cols-1 rounded-t-lg bg-gray-50 border-b border-gray-200 shrink-0">
+                <TabsTrigger value="upload">Upload & Manage Documents</TabsTrigger>
               </TabsList>
               
               <TabsContent value="upload" className="p-6 flex-1 overflow-y-auto">
                 <FileUpload onFileUploadComplete={handleFileUploadComplete} />
-              </TabsContent>
-              
-              <TabsContent value="chat" className="p-0 flex-1 flex flex-col">
-                <ChatInterface activeDocument={activeDocument} />
               </TabsContent>
             </Tabs>
           </div>
