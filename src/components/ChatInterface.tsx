@@ -29,6 +29,16 @@ type ChatInterfaceProps = {
   activeDocument?: Document;
 };
 
+// Helper to detect greetings
+const isGreeting = (text: string) => {
+  const greetings = [
+    "hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+    "greetings", "howdy", "yo", "sup", "what's up", "morning", "afternoon", "evening"
+  ];
+  const normalized = text.trim().toLowerCase();
+  return greetings.some(greet => normalized === greet || normalized.startsWith(greet + " "));
+};
+
 const formatMessageContent = (content: string): JSX.Element => {
   let formattedContent = content.replace(/#/g, '');
   // Split by **bold** and *italic*
@@ -109,11 +119,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
+
+    // Greeting check
+    if (isGreeting(inputValue)) {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-ai`,
+          content: "Hello! How can I assist you with your legal questions today?",
+          sender: 'ai',
+          timestamp: new Date()
+        }
+      ]);
+      return;
+    }
+
     setIsLoading(true);
+
+    // Prepare conversational context (last 10 messages)
+    const lastMessages = [...messages, userMessage].slice(-10);
+    const context = lastMessages.map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n');
 
     try {
       const responseText = await answerQuestion(
-        userMessage.content,
+        context,
         activeDocument?.name || null,
         activeDocument?.content || null,
         apiKey
