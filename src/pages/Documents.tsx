@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import DocumentList from '@/components/DocumentList';
 import FileUpload from '@/components/FileUpload';
+import ChatInterface from '@/components/ChatInterface';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, ListFilter } from 'lucide-react';
@@ -51,12 +52,13 @@ const Documents = () => {
     };
     
     setDocuments(prev => [newDocument, ...prev]);
-    setCurrentTab('upload');
+    setActiveDocument(newDocument);
+    setCurrentTab('chat');
   };
 
   const handleSelectDocument = (document: DocumentWithContent) => {
     setActiveDocument(document);
-    setCurrentTab('upload');
+    setCurrentTab('chat');
   };
 
   const handleDeleteDocument = (document: DocumentWithContent) => {
@@ -99,14 +101,27 @@ const Documents = () => {
           </div>
           
           {/* Main Content Area */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col">
+      <div className="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col">
             <Tabs value={currentTab} onValueChange={setCurrentTab} className="flex flex-col flex-1">
-              <TabsList className="w-full grid grid-cols-1 rounded-t-lg bg-gray-50 border-b border-gray-200 shrink-0">
+              <TabsList className="w-full grid grid-cols-2 rounded-t-lg bg-gray-50 border-b border-gray-200 shrink-0">
                 <TabsTrigger value="upload">Upload & Manage Documents</TabsTrigger>
+                <TabsTrigger value="chat" disabled={!activeDocument}>
+                  Ask Questions
+                </TabsTrigger>
               </TabsList>
               
               <TabsContent value="upload" className="p-6 flex-1 overflow-y-auto">
                 <FileUpload onFileUploadComplete={handleFileUploadComplete} />
+              </TabsContent>
+              
+              <TabsContent value="chat" className="flex-1 flex flex-col">
+                {activeDocument ? (
+                  <ChatInterface activeDocument={activeDocument} />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-gray-500">Select a document to start asking questions</p>
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
