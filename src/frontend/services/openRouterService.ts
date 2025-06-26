@@ -119,20 +119,27 @@ const qaSystemPromptBase = `You are a knowledgeable Ugandan legal AI assistant. 
 
 export const answerQuestion = async (
   question: string,
+  conversationContext: string,
   documentContext: string | null,
   documentContent: string | null,
   apiKey: string
 ): Promise<string> => {
-  const systemPrompt = documentContext
-    ? `${qaSystemPromptBase} Context: "${documentContext}".`
-    : qaSystemPromptBase;
+  let systemPrompt = qaSystemPromptBase;
+  
+  if (conversationContext) {
+    systemPrompt += `\n\nConversation History:\n${conversationContext}`;
+  }
+  
+  if (documentContext) {
+    systemPrompt += `\n\nDocument Context: "${documentContext}"`;
+  }
 
   const userContent = documentContent
-    ? `Based on the document and Ugandan law, please answer: ${question}
+    ? `Based on the conversation history and document content, please answer: ${question}
 
 DOCUMENT CONTENT:
 ${documentContent}`
-    : question;
+    : `Based on the conversation history, please answer: ${question}`;
 
   const messages: OpenRouterMessage[] = [
     { role: 'system', content: systemPrompt },
