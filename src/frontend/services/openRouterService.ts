@@ -34,7 +34,7 @@ export const generateResponseWithOpenRouter = async (
       'X-Title': 'Legal AI Assistant'
     },
     body: JSON.stringify({
-      model: 'deepseek/deepseek-chat-v3-0324:free',
+      model: 'tngtech/deepseek-r1t2-chimera:free',
       messages,
       temperature: 0.3,
       max_tokens: 1500,
