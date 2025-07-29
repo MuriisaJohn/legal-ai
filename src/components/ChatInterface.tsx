@@ -91,12 +91,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     }
   }, [activeDocument]);
 
-  useEffect(() => {
-    // Only scroll if messagesEndRef is actually rendered and available
-    if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
@@ -421,30 +415,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                   </div>
                 ))}
 
-                {/* Typing Indicator */}
-                {isLoading && (
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-legal-primary text-white flex items-center justify-center">
-                      <Bot className="h-4 w-4" />
-                    </div>
-                    <div className="flex flex-col items-start">
-                      <div className="text-xs font-medium mb-1 px-1 text-gray-600">
-                        AI Assistant
-                      </div>
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 shadow-md">
-                        <div className="flex items-center space-x-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-legal-primary" />
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                          <span className="text-sm text-gray-600">
-                            {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>

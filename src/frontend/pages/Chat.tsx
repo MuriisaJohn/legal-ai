@@ -8,7 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
-import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
+import { 
+  generateResponseWithOpenRouter, 
+  answerQuestion, 
+  summarizeDocument, 
+  analyzeDocumentContent,
+  answerQuestionStreaming,
+  summarizeDocumentStreaming,
+  analyzeDocumentContentStreaming
+} from '@/frontend/services/openRouterService';
 
 type Document = {
   id: string;
@@ -164,10 +172,10 @@ const formatMessageContent = (
         return (
           <span key={index}>
             {lines.map((line, lineIndex) => (
-              <React.Fragment key={lineIndex}>
+              <span key={`line-${index}-${lineIndex}`}>
                 {line}
                 {lineIndex < lines.length - 1 && <br />}
-              </React.Fragment>
+              </span>
             ))}
           </span>
         );
@@ -355,11 +363,6 @@ const Chat = () => {
     }
   }, [activeDocument]);
 
-  useEffect(() => {
-    if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages]);
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
@@ -403,23 +406,62 @@ const Chat = () => {
     const lastMessages = [...messages, userMessage].slice(-10);
     const context = lastMessages.map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n');
 
+    // Create an initial AI message for streaming
+    const aiMessageId = `msg-${Date.now()}-ai`;
+    const initialAiMessage: Message = {
+      id: aiMessageId,
+      content: '',
+      sender: 'ai',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, initialAiMessage]);
+
     try {
-      const responseText = await answerQuestion(
+      await answerQuestionStreaming(
         inputValue,
         context,
         activeDocument?.name || null,
         activeDocument?.content || null,
-        apiKey
+        apiKey,
+        // onChunk callback - append each chunk to the message
+        (chunk: string) => {
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        // onComplete callback
+        () => {
+          setIsLoading(false);
+        },
+        // onError callback
+        (error: Error) => {
+          console.error("OpenRouter Streaming Error:", error);
+          
+          let errorContent = "I apologize, but I encountered an error while processing your request. ";
+          errorContent += `Error details: ${error.message}`;
+
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === aiMessageId 
+                ? { ...msg, content: errorContent, isError: true }
+                : msg
+            )
+          );
+          
+          toast({
+            title: "API Error",
+            description: "Failed to communicate with OpenRouter. Please check: 1) API key configuration 2) Network connection 3) Service status",
+            variant: "destructive"
+          });
+          
+          setIsLoading(false);
+        }
       );
-
-      const aiMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        content: responseText,
-        sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("OpenRouter API Error:", error);
       
@@ -480,21 +522,57 @@ const Chat = () => {
 
     setMessages(prev => [...prev, summaryRequestMessage]);
 
+    // Create an initial AI message for streaming summary
+    const summaryMessageId = `msg-${Date.now()}-ai`;
+    const initialSummaryMessage: Message = {
+      id: summaryMessageId,
+      content: `Document Summary for "${activeDocument.name}": `,
+      sender: 'ai',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, initialSummaryMessage]);
+
     try {
-      const summary = await summarizeDocument(
+      await summarizeDocumentStreaming(
         activeDocument.name,
         activeDocument.content,
-        apiKey
+        apiKey,
+        // onChunk callback
+        (chunk: string) => {
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === summaryMessageId 
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        // onComplete callback
+        () => {
+          setIsLoading(false);
+        },
+        // onError callback
+        (error: Error) => {
+          console.error("Error summarizing document:", error);
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === summaryMessageId 
+                ? { ...msg, content: error.message || "Failed to summarize the document. Please try again.", isError: true }
+                : msg
+            )
+          );
+          
+          toast({
+            title: "Error",
+            description: "Failed to summarize document. Please check the API configuration.",
+            variant: "destructive"
+          });
+          
+          setIsLoading(false);
+        }
       );
-
-      const summaryMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        content: `Document Summary for "${activeDocument.name}": ${summary}`,
-        sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, summaryMessage]);
     } catch (error) {
       console.error("Error summarizing document:", error);
 
@@ -530,21 +608,67 @@ const Chat = () => {
 
     setIsLoading(true);
 
+    // Create user message for analysis request
+    const analysisRequestMessage: Message = {
+      id: `msg-${Date.now()}-user`,
+      content: `Analyze "${activeDocument.name}"`,
+      sender: 'user',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, analysisRequestMessage]);
+
+    // Create an initial AI message for streaming analysis
+    const analysisMessageId = `msg-${Date.now()}-ai`;
+    const initialAnalysisMessage: Message = {
+      id: analysisMessageId,
+      content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`,
+      sender: 'ai',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, initialAnalysisMessage]);
+
     try {
-      const analysis = await analyzeDocumentContent(
+      await analyzeDocumentContentStreaming(
         activeDocument.name,
         activeDocument.content,
-        apiKey
+        apiKey,
+        // onChunk callback
+        (chunk: string) => {
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === analysisMessageId 
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        // onComplete callback
+        () => {
+          setIsLoading(false);
+        },
+        // onError callback
+        (error: Error) => {
+          console.error("Error analyzing document:", error);
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === analysisMessageId 
+                ? { ...msg, content: error.message || "Failed to analyze the document. Please try again.", isError: true }
+                : msg
+            )
+          );
+          
+          toast({
+            title: "Error",
+            description: "Failed to analyze document. Please check the API configuration.",
+            variant: "destructive"
+          });
+          
+          setIsLoading(false);
+        }
       );
-
-      const analysisMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n${analysis}`,
-        sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, analysisMessage]);
     } catch (error) {
       console.error("Error analyzing document:", error);
 
@@ -694,30 +818,6 @@ const Chat = () => {
                       </div>
                     ))}
 
-                    {/* Typing Indicator */}
-                    {isLoading && (
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-legal-primary text-white flex items-center justify-center">
-                          <Bot className="h-4 w-4" />
-                        </div>
-                        <div className="flex flex-col items-start">
-                          <div className="text-xs font-medium mb-1 px-1 text-gray-600">
-                            AI Assistant
-                          </div>
-                          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 shadow-md">
-                            <div className="flex items-center space-x-2">
-                              <Loader2 className="h-4 w-4 animate-spin text-legal-primary" />
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
-                              <span className="text-sm text-gray-600">
-                                {activeDocument ? `Analyzing "${activeDocument.name}"...` : "Thinking..."}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                     <div ref={messagesEndRef} />
                   </div>
                 </ScrollArea>
