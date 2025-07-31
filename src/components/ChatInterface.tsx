@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
-import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
+import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent, summarizeDocumentStreaming, analyzeDocumentContentStreaming, validateOpenRouterApiKey } from '@/frontend/services/openRouterService';
 
 type Document = {
   id: string;
@@ -91,6 +91,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
     }
   }, [activeDocument]);
 
+  // Validate API key on component mount
+  useEffect(() => {
+    const validateApiKey = async () => {
+      if (apiKey) {
+        const validation = await validateOpenRouterApiKey(apiKey);
+        if (!validation.valid) {
+          toast({
+            title: "API Key Issue",
+            description: validation.error || "Please check your OpenRouter API key configuration.",
+            variant: "destructive"
+          });
+        }
+      }
+    };
+
+    validateApiKey();
+  }, [apiKey]);
+
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
@@ -136,10 +154,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
     try {
       const responseText = await answerQuestion(
-        context,
-        activeDocument?.name || null,
-        activeDocument?.content || null,
-        apiKey
+        inputValue, // question
+        context, // conversationContext
+        activeDocument?.name || null, // documentContext
+        activeDocument?.content || null, // documentContent
+        apiKey // apiKey
       );
 
       const aiMessage: Message = {
@@ -203,21 +222,57 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
     setMessages(prev => [...prev, summaryRequestMessage]);
 
+    // Create an initial AI message for streaming summary
+    const summaryMessageId = `msg-${Date.now()}-ai`;
+    const initialSummaryMessage: Message = {
+      id: summaryMessageId,
+      content: `Document Summary for "${activeDocument.name}": `,
+      sender: 'ai',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, initialSummaryMessage]);
+
     try {
-      const summary = await summarizeDocument(
+      await summarizeDocumentStreaming(
         activeDocument.name,
         activeDocument.content,
-        apiKey
+        apiKey,
+        // onChunk callback
+        (chunk: string) => {
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === summaryMessageId 
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        // onComplete callback
+        () => {
+          setIsLoading(false);
+        },
+        // onError callback
+        (error: Error) => {
+          console.error("Error summarizing document:", error);
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === summaryMessageId 
+                ? { ...msg, content: error.message || "Failed to summarize the document. Please try again.", isError: true }
+                : msg
+            )
+          );
+          
+          toast({
+            title: "Error",
+            description: "Failed to summarize document. Please check the API configuration.",
+            variant: "destructive"
+          });
+          
+          setIsLoading(false);
+        }
       );
-
-      const summaryMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        content: `Document Summary for "${activeDocument.name}": ${summary}`,
-        sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, summaryMessage]);
     } catch (error) {
       console.error("Error summarizing document:", error);
 
@@ -236,7 +291,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         description: "Failed to summarize document. Please check the API configuration.",
         variant: "destructive"
       });
-    } finally {
+      
       setIsLoading(false);
     }
   };
@@ -253,21 +308,57 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
 
     setIsLoading(true);
 
+    // Create an initial AI message for streaming analysis
+    const analysisMessageId = `msg-${Date.now()}-ai`;
+    const initialAnalysisMessage: Message = {
+      id: analysisMessageId,
+      content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`,
+      sender: 'ai',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, initialAnalysisMessage]);
+
     try {
-      const analysis = await analyzeDocumentContent(
+      await analyzeDocumentContentStreaming(
         activeDocument.name,
         activeDocument.content,
-        apiKey
+        apiKey,
+        // onChunk callback
+        (chunk: string) => {
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === analysisMessageId 
+                ? { ...msg, content: msg.content + chunk }
+                : msg
+            )
+          );
+        },
+        // onComplete callback
+        () => {
+          setIsLoading(false);
+        },
+        // onError callback
+        (error: Error) => {
+          console.error("Error analyzing document:", error);
+          
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === analysisMessageId 
+                ? { ...msg, content: error.message || "Failed to analyze the document. Please try again.", isError: true }
+                : msg
+            )
+          );
+          
+          toast({
+            title: "Error",
+            description: "Failed to analyze document. Please check the API configuration.",
+            variant: "destructive"
+          });
+          
+          setIsLoading(false);
+        }
       );
-
-      const analysisMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
-        content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n${analysis}`,
-        sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, analysisMessage]);
     } catch (error) {
       console.error("Error analyzing document:", error);
 
@@ -286,7 +377,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
         description: "Failed to analyze document. Please check the API configuration.",
         variant: "destructive"
       });
-    } finally {
+      
       setIsLoading(false);
     }
   };

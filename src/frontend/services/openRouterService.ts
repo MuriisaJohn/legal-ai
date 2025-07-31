@@ -20,11 +20,53 @@ export interface OpenRouterStreamChunk {
   }>;
 }
 
+// API key validation utility
+export const validateOpenRouterApiKey = async (apiKey: string): Promise<{ valid: boolean; error?: string }> => {
+  if (!apiKey || apiKey.trim() === '') {
+    return { valid: false, error: 'API key is missing' };
+  }
+
+  if (!apiKey.startsWith('sk-or-')) {
+    return { valid: false, error: 'Invalid API key format. OpenRouter keys should start with "sk-or-"' };
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': window.location.origin,
+        'X-Title': 'Legal AI Assistant'
+      }
+    });
+
+    if (response.ok) {
+      return { valid: true };
+    } else if (response.status === 401) {
+      return { valid: false, error: 'API key is invalid or expired' };
+    } else {
+      return { valid: false, error: `API validation failed: ${response.status}` };
+    }
+  } catch (error) {
+    return { valid: false, error: 'Network error while validating API key' };
+  }
+};
+
 // Utility for sending a chat completion request
 export const generateResponseWithOpenRouter = async (
   messages: OpenRouterMessage[],
   apiKey: string
 ): Promise<string> => {
+  // Validate API key
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('OpenRouter API key is missing. Please check your environment variables.');
+  }
+
+  if (!apiKey.startsWith('sk-or-')) {
+    throw new Error('Invalid OpenRouter API key format. Please check your API key.');
+  }
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -43,7 +85,18 @@ export const generateResponseWithOpenRouter = async (
   });
 
   if (!response.ok) {
-    throw new Error(`OpenRouter API error: ${response.status}`);
+    const errorText = await response.text();
+    console.error('OpenRouter API Error:', response.status, errorText);
+    
+    if (response.status === 401) {
+      throw new Error('OpenRouter API authentication failed. Please check your API key is valid and not expired.');
+    } else if (response.status === 429) {
+      throw new Error('OpenRouter API rate limit exceeded. Please try again later.');
+    } else if (response.status >= 500) {
+      throw new Error('OpenRouter API server error. Please try again later.');
+    } else {
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
   }
 
   const data: OpenRouterResponse = await response.json();
@@ -60,6 +113,15 @@ export const generateStreamingResponseWithOpenRouter = async (
   onError?: (error: Error) => void
 ): Promise<void> => {
   try {
+    // Validate API key
+    if (!apiKey || apiKey.trim() === '') {
+      throw new Error('OpenRouter API key is missing. Please check your environment variables.');
+    }
+
+    if (!apiKey.startsWith('sk-or-')) {
+      throw new Error('Invalid OpenRouter API key format. Please check your API key.');
+    }
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -79,7 +141,18 @@ export const generateStreamingResponseWithOpenRouter = async (
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`);
+      const errorText = await response.text();
+      console.error('OpenRouter API Error:', response.status, errorText);
+      
+      if (response.status === 401) {
+        throw new Error('OpenRouter API authentication failed. Please check your API key is valid and not expired.');
+      } else if (response.status === 429) {
+        throw new Error('OpenRouter API rate limit exceeded. Please try again later.');
+      } else if (response.status >= 500) {
+        throw new Error('OpenRouter API server error. Please try again later.');
+      } else {
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+      }
     }
 
     if (!response.body) {
