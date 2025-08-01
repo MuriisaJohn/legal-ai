@@ -19,50 +19,57 @@ type DocumentWithContent = {
 };
 
 // Sample document data
-const sampleDocuments: DocumentWithContent[] = [{
-  id: 'doc1',
-  name: 'Service Agreement.pdf',
-  type: 'PDF',
-  date: 'April 10, 2025',
-  starred: true
-}, {
-  id: 'doc2',
-  name: 'Employment Contract.pdf',
-  type: 'PDF',
-  date: 'April 9, 2025'
-}];
+const sampleDocuments: DocumentWithContent[] = [
+  { 
+    id: 'doc1', 
+    name: 'Service Agreement.pdf', 
+    type: 'PDF', 
+    date: 'April 10, 2025',
+    starred: true
+  },
+  { 
+    id: 'doc2', 
+    name: 'Employment Contract.pdf', 
+    type: 'PDF', 
+    date: 'April 9, 2025' 
+  },
+  
+];
+
 const Documents = () => {
   const [documents, setDocuments] = useState<DocumentWithContent[]>(sampleDocuments);
   const [activeDocument, setActiveDocument] = useState<DocumentWithContent | undefined>(undefined);
   const [isMobileFiltersVisible, setIsMobileFiltersVisible] = useState(false);
   const [currentTab, setCurrentTab] = useState<string>('upload');
+
   const handleFileUploadComplete = (fileId: string, fileData: any) => {
     const newDocument: DocumentWithContent = {
       id: fileId,
       name: fileData.name,
       type: fileData.type.split('/')[1].toUpperCase(),
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric'
-      }),
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
       content: fileData.content
     };
+    
     setDocuments(prev => [newDocument, ...prev]);
     setActiveDocument(newDocument);
     setCurrentTab('chat');
   };
+
   const handleSelectDocument = (document: DocumentWithContent) => {
     setActiveDocument(document);
     setCurrentTab('chat');
   };
+
   const handleDeleteDocument = (document: DocumentWithContent) => {
     setDocuments(prev => prev.filter(doc => doc.id !== document.id));
     if (activeDocument?.id === document.id) {
       setActiveDocument(undefined);
     }
   };
-  return <div className="flex flex-col min-h-screen bg-legal-light">
+
+  return (
+    <div className="flex flex-col min-h-screen bg-legal-light">
       <Navbar />
       <main className="flex-1 container mx-auto px-4 py-8 flex flex-col">
         <h1 className="font-serif text-3xl font-bold text-legal-primary mb-6">Legal Document Center</h1>
@@ -73,7 +80,11 @@ const Documents = () => {
             {/* Mobile Filters Toggle */}
             <div className="flex justify-between items-center mb-4 lg:hidden">
               <h2 className="font-serif text-xl font-semibold text-legal-primary">Documents</h2>
-              <Button variant="outline" size="sm" onClick={() => setIsMobileFiltersVisible(!isMobileFiltersVisible)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMobileFiltersVisible(!isMobileFiltersVisible)}
+              >
                 <ListFilter className="h-4 w-4 mr-2" /> {isMobileFiltersVisible ? 'Hide' : 'Show'} Documents
               </Button>
             </div>
@@ -81,7 +92,11 @@ const Documents = () => {
             
             {/* Document List - Hidden on mobile unless toggled */}
             <div className={`${isMobileFiltersVisible ? 'block' : 'hidden'} lg:block flex-1 overflow-y-auto`}>
-              <DocumentList documents={documents} onSelectDocument={handleSelectDocument} onDeleteDocument={handleDeleteDocument} />
+              <DocumentList 
+                documents={documents} 
+                onSelectDocument={handleSelectDocument}
+                onDeleteDocument={handleDeleteDocument}
+              />
             </div>
           </div>
           
@@ -99,12 +114,22 @@ const Documents = () => {
                 <FileUpload onFileUploadComplete={handleFileUploadComplete} />
               </TabsContent>
               
-              
+              <TabsContent value="chat" className="flex-1 flex flex-col">
+                {activeDocument ? (
+                  <ChatInterface activeDocument={activeDocument} />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <p className="text-gray-500">Select a document to start asking questions</p>
+                  </div>
+                )}
+              </TabsContent>
             </Tabs>
           </div>
         </div>
       </main>
       <Footer />
-    </div>;
+    </div>
+  );
 };
+
 export default Documents;
