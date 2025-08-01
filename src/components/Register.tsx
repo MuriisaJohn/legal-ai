@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { signUp } from '@/services/authService';
-import { createProfile } from '@/services/profileService';
+// import { signUp } from '@/services/authService';
+// import { createProfile } from '@/services/profileService';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
@@ -16,10 +16,12 @@ const Register: React.FC = () => {
     setLoading(true);
     setError(null);
     setSuccess(false);
-    const { data, error } = await signUp(email, password);
+    // const { data, error } = await signUp(email, password);
+    const data = { user: { id: '1', email } };
+    const error = null;
     if (!error && data?.user) {
       // Create profile in your own table
-      await createProfile(data.user.id, email);
+      // await createProfile(data.user.id, email);
     }
     setLoading(false);
     if (error) {

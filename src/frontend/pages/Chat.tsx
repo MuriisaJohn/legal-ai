@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User } from 'lucide-react';
+import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User, Mic, MicOff } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { 
   generateResponseWithOpenRouter, 
@@ -336,6 +336,7 @@ const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
@@ -699,6 +700,58 @@ const Chat = () => {
     }
   };
 
+  const handleVoiceToggle = async () => {
+    if (!isListening) {
+      try {
+        // Request microphone permissions
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setIsListening(true);
+        
+        // Web Speech API for voice input
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+          const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+          const recognition = new SpeechRecognition();
+          
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = 'en-US';
+          
+          recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            setInputValue(transcript);
+            setIsListening(false);
+          };
+          
+          recognition.onerror = () => {
+            setIsListening(false);
+            toast({
+              title: "Voice Recognition Error",
+              description: "Could not process voice input. Please try again.",
+              variant: "destructive"
+            });
+          };
+          
+          recognition.onend = () => {
+            setIsListening(false);
+          };
+          
+          recognition.start();
+        } else {
+          throw new Error('Speech recognition not supported');
+        }
+      } catch (error) {
+        setIsListening(false);
+        toast({
+          title: "Microphone Access Denied",
+          description: "Please allow microphone access to use voice input.",
+          variant: "destructive"
+        });
+      }
+    } else {
+      setIsListening(false);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-legal-light">
       <Navbar />
@@ -834,9 +887,30 @@ const Chat = () => {
                       placeholder={activeDocument
                         ? `Ask about "${activeDocument.name}" or Ugandan law...`
                         : "Ask a question about Ugandan law..."}
-                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white"
-                      disabled={isLoading}
+                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-24 py-3 shadow-sm bg-white"
+                      disabled={isLoading || isListening}
                     />
+                    
+                    {/* Voice Assistant Button */}
+                    <Button
+                      onClick={handleVoiceToggle}
+                      disabled={isLoading}
+                      size="sm"
+                      variant="ghost"
+                      className={`absolute right-12 top-1/2 transform -translate-y-1/2 rounded-full h-9 w-9 p-0 ${
+                        isListening 
+                          ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse' 
+                          : 'hover:bg-legal-primary/10 text-legal-primary'
+                      }`}
+                    >
+                      {isListening ? (
+                        <MicOff className="h-4 w-4" />
+                      ) : (
+                        <Mic className="h-4 w-4" />
+                      )}
+                    </Button>
+                    
+                    {/* Send Button */}
                     <Button
                       onClick={handleSendMessage}
                       disabled={inputValue.trim() === '' || isLoading}

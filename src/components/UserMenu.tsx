@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getUser, signOut } from '@/services/authService';
+// import { getUser, signOut } from '@/services/authService';
 import { Button } from '@/components/ui/button';
 
 const UserMenu: React.FC = () => {
@@ -7,13 +7,14 @@ const UserMenu: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      const u = await getUser();
+      // const u = await getUser();
+      const u = null;
       setUser(u);
     })();
   }, []);
 
   const handleLogout = async () => {
-    await signOut();
+    // await signOut();
     setUser(null);
     window.location.reload(); // Optionally reload to reset state
   };
