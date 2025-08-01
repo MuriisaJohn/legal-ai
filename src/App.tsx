@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Documents from "./pages/Documents";
 import Chat from "./pages/Chat";
+import VoiceMode from "./pages/VoiceMode";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import About from "./pages/About";
@@ -32,6 +33,7 @@ const App = () => {
               <Route path="/" element={<Index />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/chat" element={<Chat />} />
+              <Route path="/voice" element={<VoiceMode />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/about" element={<About />} />

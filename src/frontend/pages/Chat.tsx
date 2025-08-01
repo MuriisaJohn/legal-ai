@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { Button } from "@/components/ui/button";
@@ -332,6 +333,7 @@ export { formatMessageContent, formatMessageContentOptimized };
 export type { FormatOptions };
 
 const Chat = () => {
+  const navigate = useNavigate();
   const [activeDocument, setActiveDocument] = useState<Document | undefined>(undefined);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -700,56 +702,8 @@ const Chat = () => {
     }
   };
 
-  const handleVoiceToggle = async () => {
-    if (!isListening) {
-      try {
-        // Request microphone permissions
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        setIsListening(true);
-        
-        // Web Speech API for voice input
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-          const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-          const recognition = new SpeechRecognition();
-          
-          recognition.continuous = false;
-          recognition.interimResults = false;
-          recognition.lang = 'en-US';
-          
-          recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            setInputValue(transcript);
-            setIsListening(false);
-          };
-          
-          recognition.onerror = () => {
-            setIsListening(false);
-            toast({
-              title: "Voice Recognition Error",
-              description: "Could not process voice input. Please try again.",
-              variant: "destructive"
-            });
-          };
-          
-          recognition.onend = () => {
-            setIsListening(false);
-          };
-          
-          recognition.start();
-        } else {
-          throw new Error('Speech recognition not supported');
-        }
-      } catch (error) {
-        setIsListening(false);
-        toast({
-          title: "Microphone Access Denied",
-          description: "Please allow microphone access to use voice input.",
-          variant: "destructive"
-        });
-      }
-    } else {
-      setIsListening(false);
-    }
+  const handleVoiceToggle = () => {
+    navigate('/voice');
   };
 
   return (
