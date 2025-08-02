@@ -17,6 +17,8 @@ const VoiceMode = () => {
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
@@ -137,8 +139,16 @@ const VoiceMode = () => {
       // Create audio object and play
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
+      
+      // Track current audio for pause functionality
+      setCurrentAudio(audio);
+      setIsAudioPaused(false);
 
       audio.onended = () => {
+        // Clear current audio reference
+        setCurrentAudio(null);
+        setIsAudioPaused(false);
+        
         // Auto-restart listening after TTS completes
         setTimeout(() => {
           if (!isListening && !isProcessing) {
@@ -152,6 +162,10 @@ const VoiceMode = () => {
 
       audio.onerror = (error) => {
         console.error('Audio playback error:', error);
+        
+        // Clear current audio reference
+        setCurrentAudio(null);
+        setIsAudioPaused(false);
         
         // Clean up the blob URL on error
         URL.revokeObjectURL(audioUrl);
@@ -171,6 +185,30 @@ const VoiceMode = () => {
     }
   };
   
+  // Audio pause/resume functionality
+  const handleAudioPause = () => {
+    if (currentAudio) {
+      if (isAudioPaused) {
+        currentAudio.play();
+        setIsAudioPaused(false);
+      } else {
+        currentAudio.pause();
+        setIsAudioPaused(true);
+      }
+    } else if ('speechSynthesis' in window) {
+      // Handle browser TTS pause/resume
+      if (speechSynthesis.speaking) {
+        if (speechSynthesis.paused) {
+          speechSynthesis.resume();
+          setIsAudioPaused(false);
+        } else {
+          speechSynthesis.pause();
+          setIsAudioPaused(true);
+        }
+      }
+    }
+  };
+
   // Fallback function to use browser TTS
   const fallbackToBrowserTTS = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -181,6 +219,7 @@ const VoiceMode = () => {
       utterance.volume = 0.8;
       
       utterance.onend = () => {
+        setIsAudioPaused(false);
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
@@ -190,6 +229,7 @@ const VoiceMode = () => {
       
       utterance.onerror = (error) => {
         console.error('Browser TTS error:', error);
+        setIsAudioPaused(false);
         toast({
           title: "Speech Synthesis Error",
           description: "Failed to play speech using browser TTS.",
@@ -377,8 +417,8 @@ const VoiceMode = () => {
             size="lg"
             variant="ghost"
             className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0"
-            onClick={stopListening}
-            disabled={!isListening}
+            onClick={handleAudioPause}
+            disabled={!currentAudio && !speechSynthesis?.speaking}
           >
             <Pause className="h-5 w-5" />
           </Button>
