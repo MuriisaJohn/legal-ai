@@ -4,11 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
-import { 
-  answerQuestionWithVoice, 
-  generateAudioFromText, 
-  checkTTSServiceHealth 
-} from "@/services/kyutaiTTSService";
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -128,15 +123,43 @@ const VoiceMode = () => {
     stopAudioAnalysis();
   };
 
-  // Text-to-Speech function using Kyutai
+  // Text-to-Speech function using ElevenLabs
   const speakText = async (text: string) => {
     try {
-      console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
+      // Check if we have ElevenLabs API key
+      const elevenLabsKey = localStorage.getItem('elevenlabs_api_key');
       
-      // Try to generate audio using Kyutai TTS service first
-      const audioBlob = await generateAudioFromText(text, 'default');
+      if (!elevenLabsKey) {
+        // Fallback to browser TTS if no ElevenLabs key
+        fallbackToBrowserTTS(text);
+        return;
+      }
+
+      console.log('Generating speech with ElevenLabs for:', text.substring(0, 50) + '...');
       
-      // Create audio object and play
+      // Use ElevenLabs API
+      const response = await fetch('https://api.elevenlabs.io/v1/text-to-speech/9BWtsMINqrJLrRacOk9x', {
+        method: 'POST',
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': elevenLabsKey
+        },
+        body: JSON.stringify({
+          text: text,
+          model_id: 'eleven_turbo_v2_5',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API error: ${response.status}`);
+      }
+
+      const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       
@@ -180,7 +203,7 @@ const VoiceMode = () => {
     } catch (error) {
       console.error("TTS Error: ", error);
       
-      // Fallback to browser TTS if Kyutai fails
+      // Fallback to browser TTS if ElevenLabs fails
       fallbackToBrowserTTS(text);
     }
   };
