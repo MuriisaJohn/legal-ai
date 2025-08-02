@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, X, Volume2 } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 
 const VoiceMode = () => {
@@ -231,14 +231,15 @@ const VoiceMode = () => {
       {/* Bottom Controls */}
       <div className="p-6 pb-8">
         <div className="flex items-center justify-center gap-6">
-          {/* Placeholder buttons for future features */}
+          {/* Pause button */}
           <Button
             size="lg"
             variant="ghost"
             className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0"
-            disabled
+            onClick={stopListening}
+            disabled={!isListening}
           >
-            <div className="w-6 h-6 bg-white/20 rounded"></div>
+            <Pause className="h-5 w-5" />
           </Button>
 
           {/* Main microphone button */}
