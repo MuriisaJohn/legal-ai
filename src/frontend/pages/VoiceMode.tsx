@@ -347,6 +347,9 @@ const VoiceMode = () => {
   };
 
   useEffect(() => {
+    // Store ElevenLabs API key
+    localStorage.setItem('elevenlabs_api_key', 'sk_d91f55420e595ec0f8a45c4588f7846ecbbcd91e340591c9');
+    
     // Auto-start listening when component mounts
     startListening();
     
