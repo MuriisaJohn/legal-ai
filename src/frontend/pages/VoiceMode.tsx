@@ -11,6 +11,7 @@ const VoiceMode = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
+  const [animatedWords, setAnimatedWords] = useState<string[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [isAudioPaused, setIsAudioPaused] = useState(false);
@@ -284,6 +285,18 @@ const VoiceMode = () => {
     }
   };
 
+  // Animate response text word by word like Spotify lyrics
+  const animateResponseText = (text: string) => {
+    const words = text.split(' ');
+    setAnimatedWords([]);
+    
+    words.forEach((word, index) => {
+      setTimeout(() => {
+        setAnimatedWords(prev => [...prev, word]);
+      }, index * 200); // 200ms delay between words
+    });
+  };
+
   const processVoiceInput = async (text: string) => {
     setIsProcessing(true);
     stopListening(); // Stop listening while processing
@@ -319,6 +332,9 @@ const VoiceMode = () => {
       
       setResponse(aiResponse);
       setIsProcessing(false);
+      
+      // Animate words appearing one by one
+      animateResponseText(aiResponse);
       
       // Speak the response using TTS
       speakText(aiResponse);
@@ -436,8 +452,24 @@ const VoiceMode = () => {
           ) : transcript ? (
             <div className="space-y-2">
               <p className="text-white text-xl font-medium">{transcript}</p>
-              {response && (
-                <p className="text-legal-accent text-base">{response}</p>
+              {animatedWords.length > 0 && (
+                <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
+                  <div className="flex flex-wrap gap-2 items-center justify-center">
+                    {animatedWords.map((word, index) => (
+                      <span
+                        key={index}
+                        className="text-white text-lg font-medium animate-fade-in"
+                        style={{
+                          animationDelay: `${index * 0.1}s`,
+                          transform: 'translateY(0)',
+                          opacity: 1
+                        }}
+                      >
+                        {word}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ) : isListening ? (
