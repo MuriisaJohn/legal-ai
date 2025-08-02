@@ -92,8 +92,6 @@
 
   body {
     @apply bg-legal-light text-legal-dark font-sans;
-    /* Reduced padding bottom to match the actual input height */
-    padding-bottom: 64px;
   }
 
   h1, h2, h3, h4, h5, h6 {
