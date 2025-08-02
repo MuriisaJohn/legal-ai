@@ -374,8 +374,21 @@ const VoiceMode = () => {
             {/* Inner animated circles */}
             {isListening && (
               <>
-                <div className="absolute inset-4 rounded-full border border-white/30 animate-ping"></div>
-                <div className="absolute inset-8 rounded-full border border-white/20 animate-pulse"></div>
+                <div 
+                  className="absolute inset-4 rounded-full border border-white/30 transition-all duration-150"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.3})`,
+                    opacity: 0.3 + audioLevel * 0.4,
+                    borderWidth: `${1 + audioLevel * 2}px`
+                  }}
+                ></div>
+                <div 
+                  className="absolute inset-8 rounded-full border border-white/20 transition-all duration-200"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.5})`,
+                    opacity: 0.2 + audioLevel * 0.3
+                  }}
+                ></div>
               </>
             )}
             
