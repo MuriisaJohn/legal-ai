@@ -1,0 +1,9 @@
+flask
+flask-cors
+requests
+torch>=2.0.0
+numpy
+soundfile
+huggingface-hub
+transformers
+ffmpeg-python

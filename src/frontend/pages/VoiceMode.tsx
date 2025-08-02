@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
+import { 
+  answerQuestionWithVoice, 
+  generateAudioFromText, 
+  checkTTSServiceHealth 
+} from "@/services/kyutaiTTSService";
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -121,26 +126,61 @@ const VoiceMode = () => {
     stopAudioAnalysis();
   };
 
-  // Text-to-Speech function
-  const speakText = (text: string) => {
+  // Text-to-Speech function using Kyutai
+  const speakText = async (text: string) => {
+    try {
+      console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
+      
+      // Try to generate audio using Kyutai TTS service first
+      const audioBlob = await generateAudioFromText(text, 'default');
+      
+      // Create audio object and play
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        // Auto-restart listening after TTS completes
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 1000);
+        
+        // Clean up the blob URL
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        
+        // Clean up the blob URL on error
+        URL.revokeObjectURL(audioUrl);
+        
+        // Fallback to browser TTS
+        fallbackToBrowserTTS(text);
+      };
+
+      await audio.play();
+      console.log('Audio playback started successfully');
+      
+    } catch (error) {
+      console.error("TTS Error: ", error);
+      
+      // Fallback to browser TTS if Kyutai fails
+      fallbackToBrowserTTS(text);
+    }
+  };
+  
+  // Fallback function to use browser TTS
+  const fallbackToBrowserTTS = (text: string) => {
     if ('speechSynthesis' in window) {
+      console.log('Falling back to browser TTS');
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.9;
       utterance.pitch = 1;
       utterance.volume = 0.8;
       
-      // Try to use a natural-sounding voice
-      const voices = speechSynthesis.getVoices();
-      const preferredVoice = voices.find(voice => 
-        voice.lang.startsWith('en') && voice.name.includes('Natural')
-      ) || voices.find(voice => voice.lang.startsWith('en'));
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-      
       utterance.onend = () => {
-        // Auto-restart listening after TTS completes
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
@@ -148,9 +188,31 @@ const VoiceMode = () => {
         }, 1000);
       };
       
+      utterance.onerror = (error) => {
+        console.error('Browser TTS error:', error);
+        toast({
+          title: "Speech Synthesis Error",
+          description: "Failed to play speech using browser TTS.",
+          variant: "destructive"
+        });
+        
+        // Still restart listening even if TTS fails
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 2000);
+      };
+      
       speechSynthesis.speak(utterance);
     } else {
-      // Fallback if TTS not supported
+      toast({
+        title: "TTS Error",
+        description: "Text-to-speech is not supported in this browser.",
+        variant: "destructive"
+      });
+      
+      // Still restart listening even if TTS fails
       setTimeout(() => {
         if (!isListening && !isProcessing) {
           startListening();

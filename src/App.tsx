@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Documents from "./pages/Documents";
 import Chat from "./pages/Chat";
-import VoiceMode from "./pages/VoiceMode";
+import VoiceMode from "./frontend/pages/VoiceMode";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import About from "./pages/About";
