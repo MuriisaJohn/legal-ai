@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
+import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -120,21 +121,99 @@ const VoiceMode = () => {
     stopAudioAnalysis();
   };
 
-  const processVoiceInput = async (text: string) => {
-    setIsProcessing(true);
-    
-    // Simulate AI processing - replace with actual API call
-    setTimeout(() => {
-      setResponse(`I heard you say: "${text}". This is a simulated response from your legal AI assistant.`);
-      setIsProcessing(false);
+  // Text-to-Speech function
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      utterance.volume = 0.8;
       
-      // Auto-restart listening after response
+      // Try to use a natural-sounding voice
+      const voices = speechSynthesis.getVoices();
+      const preferredVoice = voices.find(voice => 
+        voice.lang.startsWith('en') && voice.name.includes('Natural')
+      ) || voices.find(voice => voice.lang.startsWith('en'));
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+      }
+      
+      utterance.onend = () => {
+        // Auto-restart listening after TTS completes
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 1000);
+      };
+      
+      speechSynthesis.speak(utterance);
+    } else {
+      // Fallback if TTS not supported
       setTimeout(() => {
-        if (!isListening) {
+        if (!isListening && !isProcessing) {
           startListening();
         }
       }, 2000);
-    }, 1500);
+    }
+  };
+
+  const processVoiceInput = async (text: string) => {
+    setIsProcessing(true);
+    stopListening(); // Stop listening while processing
+    
+    try {
+      // Get API key
+      const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || localStorage.getItem('openrouter_api_key');
+      
+      if (!apiKey) {
+        toast({
+          title: "API Key Missing",
+          description: "Please set your OpenRouter API key in settings.",
+          variant: "destructive"
+        });
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Prepare messages for OpenRouter
+      const messages: OpenRouterMessage[] = [
+        {
+          role: 'system',
+          content: `You are a knowledgeable Ugandan legal AI assistant. Provide helpful, accurate legal guidance based on Ugandan law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes when applicable.`
+        },
+        {
+          role: 'user',
+          content: text
+        }
+      ];
+      
+      // Get response from OpenRouter
+      const aiResponse = await generateResponseWithOpenRouter(messages, apiKey);
+      
+      setResponse(aiResponse);
+      setIsProcessing(false);
+      
+      // Speak the response using TTS
+      speakText(aiResponse);
+      
+    } catch (error) {
+      console.error('Error processing voice input:', error);
+      setIsProcessing(false);
+      
+      const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
+      setResponse(errorMessage);
+      
+      // Speak error message
+      speakText(errorMessage);
+      
+      toast({
+        title: "Processing Error",
+        description: "Failed to get AI response. Please check your connection and API key.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleClose = () => {
