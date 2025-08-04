@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
+import { generateAudioFromText } from "@/services/kyutaiTTSService";
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -13,6 +14,10 @@ const VoiceMode = () => {
   const [response, setResponse] = useState('');
   const [animatedWords, setAnimatedWords] = useState<string[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [conversationHistory, setConversationHistory] = useState<OpenRouterMessage[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [isAudioPaused, setIsAudioPaused] = useState(false);
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -129,10 +134,31 @@ const VoiceMode = () => {
     stopAudioAnalysis();
   };
 
+  // Function to interrupt current speech
+  const interruptSpeech = () => {
+    console.log('Interrupting current speech...');
+    isInterruptedRef.current = true;
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      setCurrentAudio(null);
+    }
+    setIsSpeaking(false);
+    // Clear browser TTS if it's speaking
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
+  };
+
   // Text-to-Speech function using Kyutai
   const speakText = async (text: string) => {
     try {
       console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
+      setIsSpeaking(true);
+      isInterruptedRef.current = false;
       
       // Try to generate audio using Kyutai TTS service first
       const audioBlob = await generateAudioFromText(text, 'default');
@@ -140,8 +166,17 @@ const VoiceMode = () => {
       // Create audio object and play
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
+      
+      // Set current audio references
+      setCurrentAudio(audio);
+      currentAudioRef.current = audio;
 
       audio.onended = () => {
+        console.log('Audio has ended.');
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        currentAudioRef.current = null;
+        
         // Auto-restart listening after TTS completes
         setTimeout(() => {
           if (!isListening && !isProcessing) {
@@ -155,12 +190,26 @@ const VoiceMode = () => {
 
       audio.onerror = (error) => {
         console.error('Audio playback error:', error);
+        setIsSpeaking(false);
+        setCurrentAudio(null);
+        currentAudioRef.current = null;
         
         // Clean up the blob URL on error
         URL.revokeObjectURL(audioUrl);
         
-        // Fallback to browser TTS
-        fallbackToBrowserTTS(text);
+        // Show error toast instead of fallback
+        toast({
+          title: "TTS Server Error",
+          description: "Unable to play audio. Please check TTS server connection.",
+          variant: "destructive"
+        });
+        
+        // Still restart listening
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 1000);
       };
 
       await audio.play();
@@ -168,9 +217,21 @@ const VoiceMode = () => {
       
     } catch (error) {
       console.error("TTS Error: ", error);
+      setIsSpeaking(false);
       
-      // Fallback to browser TTS if Kyutai fails
-      fallbackToBrowserTTS(text);
+      // Show error toast instead of fallback
+      toast({
+        title: "TTS Server Error",
+        description: "Unable to connect to TTS server. Audio disabled.",
+        variant: "destructive"
+      });
+      
+      // Still restart listening
+      setTimeout(() => {
+        if (!isListening && !isProcessing) {
+          startListening();
+        }
+      }, 1000);
     }
   };
   
