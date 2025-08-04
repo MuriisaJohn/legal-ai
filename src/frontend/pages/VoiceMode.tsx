@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Pause, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
-import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
-import { generateAudioFromText } from "@/services/kyutaiTTSService";
+import { generateStreamingResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
+import { streamAudioFromMoshi, streamTextToSpeech } from "@/services/kyutaiTTSService";
+import { formatMessageContent } from './Chat';
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -57,8 +58,9 @@ const VoiceMode = () => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
     }
-    if (audioContextRef.current) {
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
       audioContextRef.current.close();
+      audioContextRef.current = null;
     }
     setAudioLevel(0);
   };
@@ -153,85 +155,73 @@ const VoiceMode = () => {
     }
   };
 
-  // Text-to-Speech function using Kyutai
-  const speakText = async (text: string) => {
+  // Stream audio using Kyutai TTS with WebAudio API
+  const streamAudio = async (text: string) => {
     try {
-      console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
+      console.log('Streaming audio for:', text.substring(0, 50) + '...');
       setIsSpeaking(true);
       isInterruptedRef.current = false;
-      
-      // Try to generate audio using Kyutai TTS service first
-      const audioBlob = await generateAudioFromText(text, 'default');
-      
-      // Create audio object and play
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      // Set current audio references
-      setCurrentAudio(audio);
-      currentAudioRef.current = audio;
 
-      audio.onended = () => {
-        console.log('Audio has ended.');
-        setIsSpeaking(false);
-        setCurrentAudio(null);
-        currentAudioRef.current = null;
-        
-        // Auto-restart listening after TTS completes
-        setTimeout(() => {
-          if (!isListening && !isProcessing) {
-            startListening();
+      let audioChunks: Uint8Array[] = [];
+      const audioContext = new AudioContext();
+      
+      await streamAudioFromMoshi(text, {
+        voiceId: 'default',
+        onAudioChunk: (chunk) => {
+          if (!isInterruptedRef.current) {
+            audioChunks.push(chunk);
           }
-        }, 1000);
-        
-        // Clean up the blob URL
-        URL.revokeObjectURL(audioUrl);
-      };
+        },
+        onComplete: async () => {
+          if (!isInterruptedRef.current && audioChunks.length > 0) {
+            // Combine all chunks into a single blob
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            
+            setCurrentAudio(audio);
+            currentAudioRef.current = audio;
 
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        setIsSpeaking(false);
-        setCurrentAudio(null);
-        currentAudioRef.current = null;
-        
-        // Clean up the blob URL on error
-        URL.revokeObjectURL(audioUrl);
-        
-        // Show error toast instead of fallback
-        toast({
-          title: "TTS Server Error",
-          description: "Unable to play audio. Please check TTS server connection.",
-          variant: "destructive"
-        });
-        
-        // Still restart listening
-        setTimeout(() => {
-          if (!isListening && !isProcessing) {
-            startListening();
+            audio.onended = () => {
+              console.log('Audio playback completed');
+              setIsSpeaking(false);
+              setCurrentAudio(null);
+              currentAudioRef.current = null;
+              URL.revokeObjectURL(audioUrl);
+              
+              // Auto-restart listening
+              setTimeout(() => {
+                if (!isListening && !isProcessing) {
+                  startListening();
+                }
+              }, 1000);
+            };
+
+            audio.onerror = () => {
+              console.error('Audio playback error');
+              setIsSpeaking(false);
+              URL.revokeObjectURL(audioUrl);
+              fallbackToBrowserTTS(text);
+            };
+
+            try {
+              await audio.play();
+            } catch (playError) {
+              console.error('Play error:', playError);
+              fallbackToBrowserTTS(text);
+            }
           }
-        }, 1000);
-      };
-
-      await audio.play();
-      console.log('Audio playback started successfully');
-      
-    } catch (error) {
-      console.error("TTS Error: ", error);
-      setIsSpeaking(false);
-      
-      // Show error toast instead of fallback
-      toast({
-        title: "TTS Server Error",
-        description: "Unable to connect to TTS server. Audio disabled.",
-        variant: "destructive"
-      });
-      
-      // Still restart listening
-      setTimeout(() => {
-        if (!isListening && !isProcessing) {
-          startListening();
+        },
+        onError: (error) => {
+          console.error('Streaming error:', error);
+          setIsSpeaking(false);
+          fallbackToBrowserTTS(text);
         }
-      }, 1000);
+      });
+    } catch (error) {
+      console.error('TTS Error:', error);
+      setIsSpeaking(false);
+      fallbackToBrowserTTS(text);
     }
   };
   
@@ -261,6 +251,18 @@ const VoiceMode = () => {
 
   // Fallback function to use browser TTS
   const fallbackToBrowserTTS = (text: string) => {
+    // Skip if speaking is already false (user hasn't interacted)
+    if (!isSpeaking) {
+      console.log('Skipping TTS - no user interaction yet');
+      // Just restart listening
+      setTimeout(() => {
+        if (!isListening && !isProcessing) {
+          startListening();
+        }
+      }, 1000);
+      return;
+    }
+    
     if ('speechSynthesis' in window) {
       console.log('Falling back to browser TTS');
       const utterance = new SpeechSynthesisUtterance(text);
@@ -270,6 +272,7 @@ const VoiceMode = () => {
       
       utterance.onend = () => {
         setIsAudioPaused(false);
+        setIsSpeaking(false);
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
@@ -280,11 +283,16 @@ const VoiceMode = () => {
       utterance.onerror = (error) => {
         console.error('Browser TTS error:', error);
         setIsAudioPaused(false);
-        toast({
-          title: "Speech Synthesis Error",
-          description: "Failed to play speech using browser TTS.",
-          variant: "destructive"
-        });
+        setIsSpeaking(false);
+        
+        // Don't show error toast for permission issues
+        if (error.error !== 'not-allowed') {
+          toast({
+            title: "Speech Synthesis Error",
+            description: "Audio playback requires user interaction. Please click the microphone button.",
+            variant: "destructive"
+          });
+        }
         
         // Still restart listening even if TTS fails
         setTimeout(() => {
@@ -294,15 +302,21 @@ const VoiceMode = () => {
         }, 2000);
       };
       
-      speechSynthesis.speak(utterance);
+      try {
+        speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.error('Speech synthesis failed:', e);
+        setIsSpeaking(false);
+        // Restart listening
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 1000);
+      }
     } else {
-      toast({
-        title: "TTS Error",
-        description: "Text-to-speech is not supported in this browser.",
-        variant: "destructive"
-      });
-      
-      // Still restart listening even if TTS fails
+      setIsSpeaking(false);
+      // Don't show error, just restart listening
       setTimeout(() => {
         if (!isListening && !isProcessing) {
           startListening();
@@ -326,6 +340,10 @@ const VoiceMode = () => {
   const processVoiceInput = async (text: string) => {
     setIsProcessing(true);
     stopListening(); // Stop listening while processing
+    
+    // Clear previous response
+    setResponse('');
+    setAnimatedWords([]);
     
     try {
       // Get API key
@@ -357,24 +375,147 @@ const VoiceMode = () => {
         }
       ];
       
+      let fullResponse = '';
+      let hasStartedAudio = false;
+
       // Get response from OpenRouter
-      const aiResponse = await generateResponseWithOpenRouter(messages, apiKey);
+      await generateStreamingResponseWithOpenRouter(
+        messages,
+        apiKey,
+        (chunk) => {
+          fullResponse += chunk;
+          setResponse(fullResponse);
+          animateResponseText(fullResponse);
+        },
+        () => {
+          setIsProcessing(false);
+
+          // Update conversation history with the complete response
+          setConversationHistory(prev => [
+            ...prev,
+            { role: 'user', content: text },
+            { role: 'assistant', content: fullResponse }
+          ]);
+
+          // Only stream audio once when complete
+          if (!hasStartedAudio && fullResponse.trim()) {
+            hasStartedAudio = true;
+            
+            // Enhanced audio streaming - process sentences separately but play sequentially
+            const sentences = fullResponse.match(/[^.!?]+[.!?]+/g) || [fullResponse];
+            const audioQueue: Array<{ index: number; chunks: Uint8Array[] }> = [];
+            let currentPlayingIndex = 0;
+            let processedCount = 0;
+            
+            setIsSpeaking(true);
+            
+            // Function to play audio chunks sequentially
+            const playNextAudio = async () => {
+              if (isInterruptedRef.current) return;
+              
+              const nextAudio = audioQueue.find(a => a.index === currentPlayingIndex);
+              if (!nextAudio || nextAudio.chunks.length === 0) {
+                // Check if all sentences have been processed
+                if (processedCount === sentences.length) {
+                  setIsSpeaking(false);
+                  // Auto-restart listening
+                  setTimeout(() => {
+                    if (!isListening && !isProcessing) {
+                      startListening();
+                    }
+                  }, 1000);
+                }
+                return;
+              }
+              
+              const audioBlob = new Blob(nextAudio.chunks, { type: 'audio/wav' });
+              const audioUrl = URL.createObjectURL(audioBlob);
+              const audio = new Audio(audioUrl);
+              
+              setCurrentAudio(audio);
+              currentAudioRef.current = audio;
+              
+              audio.onended = () => {
+                URL.revokeObjectURL(audioUrl);
+                currentPlayingIndex++;
+                playNextAudio(); // Play next audio in queue
+              };
+              
+              audio.onerror = () => {
+                console.error('Audio playback error');
+                URL.revokeObjectURL(audioUrl);
+                currentPlayingIndex++;
+                playNextAudio(); // Try next audio even if current fails
+              };
+              
+              try {
+                await audio.play();
+              } catch (playError) {
+                console.error('Play error:', playError);
+                if (playError.name === 'NotAllowedError') {
+                  fallbackToBrowserTTS(fullResponse);
+                } else {
+                  currentPlayingIndex++;
+                  playNextAudio();
+                }
+              }
+            };
+            
+            // Process each sentence for TTS
+            sentences.forEach((sentence, index) => {
+              const audioChunks: Uint8Array[] = [];
+              
+              streamAudioFromMoshi(sentence.trim(), {
+                voiceId: 'default',
+                onAudioChunk: (chunk) => {
+                  if (!isInterruptedRef.current) {
+                    audioChunks.push(chunk);
+                  }
+                },
+                onComplete: () => {
+                  if (!isInterruptedRef.current) {
+                    audioQueue.push({ index, chunks: audioChunks });
+                    audioQueue.sort((a, b) => a.index - b.index);
+                    processedCount++;
+                    
+                    // Start playing if this is the first audio ready
+                    if (currentPlayingIndex === index) {
+                      playNextAudio();
+                    }
+                  }
+                },
+                onError: (error) => {
+                  console.error('Error streaming audio for sentence:', error);
+                  processedCount++;
+                  // Try to continue with next sentence
+                  if (currentPlayingIndex === index) {
+                    currentPlayingIndex++;
+                    playNextAudio();
+                  }
+                }
+              });
+            });
+          }
+        },
+        (error) => {
+          console.error('Error in OpenRouter streaming:', error);
+          setIsProcessing(false);
+          const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
+          setResponse(errorMessage);
+
+          if (!hasStartedAudio) {
+            hasStartedAudio = true;
+            streamAudio(errorMessage);
+          }
+
+          toast({
+            title: "Processing Error",
+            description: "Failed to get AI response. Please check your connection and API key.",
+            variant: "destructive"
+          });
+        }
+      );
       
-      // Update conversation history
-      setConversationHistory(prev => [
-        ...prev,
-        { role: 'user', content: text },
-        { role: 'assistant', content: aiResponse }
-      ]);
-      
-      setResponse(aiResponse);
-      setIsProcessing(false);
-      
-      // Animate words appearing one by one
-      animateResponseText(aiResponse);
-      
-      // Speak the response using TTS
-      speakText(aiResponse);
       
     } catch (error) {
       console.error('Error processing voice input:', error);
@@ -383,8 +524,8 @@ const VoiceMode = () => {
       const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
       setResponse(errorMessage);
       
-      // Speak error message
-      speakText(errorMessage);
+      // Stream error message audio
+      streamAudio(errorMessage);
       
       toast({
         title: "Processing Error",
@@ -403,11 +544,18 @@ const VoiceMode = () => {
     // Store ElevenLabs API key
     localStorage.setItem('elevenlabs_api_key', 'sk_d91f55420e595ec0f8a45c4588f7846ecbbcd91e340591c9');
     
-    // Auto-start listening when component mounts
-    startListening();
-    
+    // Clean up on unmount
     return () => {
-      stopListening();
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      stopAudioAnalysis();
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+      }
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
     };
   }, []);
 
