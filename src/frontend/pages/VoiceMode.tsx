@@ -4,11 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Mic, MicOff, X, Volume2, Pause } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
-import { 
-  answerQuestionWithVoice, 
-  generateAudioFromText, 
-  checkTTSServiceHealth 
-} from "@/services/kyutaiTTSService";
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -16,10 +11,8 @@ const VoiceMode = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
+  const [animatedWords, setAnimatedWords] = useState<string[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [conversationHistory, setConversationHistory] = useState<OpenRouterMessage[]>([]);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [useBrowserTTS, setUseBrowserTTS] = useState(false); // User can toggle this
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -135,174 +128,76 @@ const VoiceMode = () => {
     setIsListening(false);
     stopAudioAnalysis();
   };
-  
-  // Function to interrupt current speech
-  const interruptSpeech = () => {
-    console.log('Interrupting current speech...');
-    isInterruptedRef.current = true;
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    setIsSpeaking(false);
-    // Clear browser TTS if it's speaking
-    if ('speechSynthesis' in window) {
-      speechSynthesis.cancel();
-    }
-  };
 
-  // Text-to-Speech function using local TTS server with streaming for long responses
+  // Text-to-Speech function using Kyutai
   const speakText = async (text: string) => {
     try {
-      console.log('Generating speech with local TTS server for:', text.substring(0, 50) + '...');
-      setIsSpeaking(true);
-      isInterruptedRef.current = false;
+      console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
       
-      // Split long text into sentences for streaming playback
-      const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+      // Try to generate audio using Kyutai TTS service first
+      const audioBlob = await generateAudioFromText(text, 'default');
       
-      if (sentences.length <= 1) {
-        // For short text, use single request
-        await playAudioFromServer(text);
-      } else {
-        // For long text, stream sentence by sentence
-        for (let i = 0; i < sentences.length; i++) {
-          if (isInterruptedRef.current) break; // Check for interruption
-          const sentence = sentences[i].trim();
-          if (sentence) {
-            await playAudioFromServer(sentence);
-            // Small delay between sentences for natural flow
-            if (!isInterruptedRef.current) {
-              await new Promise(resolve => setTimeout(resolve, 200));
-            }
-          }
-        }
-      }
-      
-      setIsSpeaking(false);
-      
-      // Auto-restart listening after all audio completes
-      if (!isInterruptedRef.current) {
+      // Create audio object and play
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      audio.onended = () => {
+        // Auto-restart listening after TTS completes
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
           }
         }, 1000);
-      }
+        
+        // Clean up the blob URL
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        
+        // Clean up the blob URL on error
+        URL.revokeObjectURL(audioUrl);
+        
+        // Fallback to browser TTS
+        fallbackToBrowserTTS(text);
+      };
+
+      await audio.play();
+      console.log('Audio playback started successfully');
       
     } catch (error) {
-      console.error("Local TTS Server Error: ", error);
-      setIsSpeaking(false);
+      console.error("TTS Error: ", error);
       
-      // Only fallback to browser TTS if explicitly enabled
-      if (useBrowserTTS) {
-        console.log('User has enabled browser TTS fallback');
-        fallbackToBrowserTTS(text);
-      } else {
-        console.log('Browser TTS fallback is disabled. No audio will be played.');
-        toast({
-          title: "TTS Server Error",
-          description: "Unable to connect to TTS server. Audio disabled.",
-          variant: "destructive"
-        });
-        
-        // Still restart listening even if TTS fails
-        setTimeout(() => {
-          if (!isListening && !isProcessing) {
-            startListening();
-          }
-        }, 1000);
-      }
+      // Fallback to browser TTS if Kyutai fails
+      fallbackToBrowserTTS(text);
     }
   };
   
-  // Helper function to play audio from server
-  const playAudioFromServer = async (text: string): Promise<void> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        // Check if interrupted before making request
-        if (isInterruptedRef.current) {
-          resolve();
-          return;
-        }
-        
-        console.log('Making TTS request to server for text:', text.substring(0, 50) + '...');
-        
-        const response = await fetch('http://localhost:5000/synthesize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: text,
-            voice_id: 'default'
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error(`TTS server responded with status: ${response.status}`);
-        }
-        
-        // Get audio blob from response
-        const audioBlob = await response.blob();
-        console.log('Received audio blob:', {
-          size: audioBlob.size,
-          type: audioBlob.type
-        });
-        
-        // Validate that we received audio data
-        if (audioBlob.size === 0) {
-          throw new Error('Received empty audio blob from server');
-        }
-        
-        // Check if interrupted before playing
-        if (isInterruptedRef.current) {
-          resolve();
-          return;
-        }
-        
-        // Create audio object and play
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        
-        // Store reference immediately for interruption
-        currentAudioRef.current = audio;
-
-        audio.oncanplaythrough = () => {
-          console.log('Audio is ready to play.');
-        };
-
-        audio.onended = () => {
-          console.log('Audio has ended.');
-          URL.revokeObjectURL(audioUrl);
-          currentAudioRef.current = null;
-          resolve();
-        };
-
-        audio.onerror = (error) => {
-          console.error('Audio playback error:', error.message);
-          URL.revokeObjectURL(audioUrl);
-          currentAudioRef.current = null;
-          reject(new Error('Failed to play audio.'));
-        };
-
-        try {
-          await audio.play();
-          console.log('Audio playback started successfully.');
-        } catch (playbackError) {
-          console.error('Error during audio playback:', playbackError);
-          URL.revokeObjectURL(audioUrl);
-          currentAudioRef.current = null;
-          reject(new Error('Playback failed: ' + playbackError.message));
-        }
-        
-      } catch (error) {
-        console.error('Error in playAudioFromServer:', error);
-        reject(error);
+  // Audio pause/resume functionality
+  const handleAudioPause = () => {
+    if (currentAudio) {
+      if (isAudioPaused) {
+        currentAudio.play();
+        setIsAudioPaused(false);
+      } else {
+        currentAudio.pause();
+        setIsAudioPaused(true);
       }
-    });
+    } else if ('speechSynthesis' in window) {
+      // Handle browser TTS pause/resume
+      if (speechSynthesis.speaking) {
+        if (speechSynthesis.paused) {
+          speechSynthesis.resume();
+          setIsAudioPaused(false);
+        } else {
+          speechSynthesis.pause();
+          setIsAudioPaused(true);
+        }
+      }
+    }
   };
-  
+
   // Fallback function to use browser TTS
   const fallbackToBrowserTTS = (text: string) => {
     if ('speechSynthesis' in window) {
@@ -313,6 +208,7 @@ const VoiceMode = () => {
       utterance.volume = 0.8;
       
       utterance.onend = () => {
+        setIsAudioPaused(false);
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
@@ -322,6 +218,7 @@ const VoiceMode = () => {
       
       utterance.onerror = (error) => {
         console.error('Browser TTS error:', error);
+        setIsAudioPaused(false);
         toast({
           title: "Speech Synthesis Error",
           description: "Failed to play speech using browser TTS.",
@@ -351,6 +248,18 @@ const VoiceMode = () => {
         }
       }, 2000);
     }
+  };
+
+  // Animate response text word by word like Spotify lyrics
+  const animateResponseText = (text: string) => {
+    const words = text.split(' ');
+    setAnimatedWords([]);
+    
+    words.forEach((word, index) => {
+      setTimeout(() => {
+        setAnimatedWords(prev => [...prev, word]);
+      }, index * 200); // 200ms delay between words
+    });
   };
 
   const processVoiceInput = async (text: string) => {
@@ -400,6 +309,9 @@ const VoiceMode = () => {
       setResponse(aiResponse);
       setIsProcessing(false);
       
+      // Animate words appearing one by one
+      animateResponseText(aiResponse);
+      
       // Speak the response using TTS
       speakText(aiResponse);
       
@@ -427,6 +339,9 @@ const VoiceMode = () => {
   };
 
   useEffect(() => {
+    // Store ElevenLabs API key
+    localStorage.setItem('elevenlabs_api_key', 'sk_d91f55420e595ec0f8a45c4588f7846ecbbcd91e340591c9');
+    
     // Auto-start listening when component mounts
     startListening();
     
@@ -477,8 +392,21 @@ const VoiceMode = () => {
             {/* Inner animated circles */}
             {isListening && (
               <>
-                <div className="absolute inset-4 rounded-full border border-white/30 animate-ping"></div>
-                <div className="absolute inset-8 rounded-full border border-white/20 animate-pulse"></div>
+                <div 
+                  className="absolute inset-4 rounded-full border border-white/30 transition-all duration-150"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.3})`,
+                    opacity: 0.3 + audioLevel * 0.4,
+                    borderWidth: `${1 + audioLevel * 2}px`
+                  }}
+                ></div>
+                <div 
+                  className="absolute inset-8 rounded-full border border-white/20 transition-all duration-200"
+                  style={{
+                    transform: `scale(${1 + audioLevel * 0.5})`,
+                    opacity: 0.2 + audioLevel * 0.3
+                  }}
+                ></div>
               </>
             )}
             
@@ -500,8 +428,24 @@ const VoiceMode = () => {
           ) : transcript ? (
             <div className="space-y-2">
               <p className="text-white text-xl font-medium">{transcript}</p>
-              {response && (
-                <p className="text-legal-accent text-base">{response}</p>
+              {animatedWords.length > 0 && (
+                <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
+                  <div className="flex flex-wrap gap-2 items-center justify-center">
+                    {animatedWords.map((word, index) => (
+                      <span
+                        key={index}
+                        className="text-white text-lg font-medium animate-fade-in"
+                        style={{
+                          animationDelay: `${index * 0.1}s`,
+                          transform: 'translateY(0)',
+                          opacity: 1
+                        }}
+                      >
+                        {word}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           ) : isListening ? (
@@ -520,8 +464,8 @@ const VoiceMode = () => {
             size="lg"
             variant="ghost"
             className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0"
-            onClick={stopListening}
-            disabled={!isListening}
+            onClick={handleAudioPause}
+            disabled={!currentAudio && !speechSynthesis?.speaking}
           >
             <Pause className="h-5 w-5" />
           </Button>
