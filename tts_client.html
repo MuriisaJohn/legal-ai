@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moshi TTS Client</title>
+    <title>Google TTS Client</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -93,19 +93,21 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎤 Moshi TTS Server</h1>
+        <h1>🎤 Google TTS Server</h1>
         
         <div class="form-group">
             <label for="text">Text to synthesize:</label>
-            <textarea id="text" placeholder="Enter the text you want to convert to speech...">Hello, this is Moshi speaking! Welcome to the legal AI voice synthesis service.</textarea>
+            <textarea id="text" placeholder="Enter the text you want to convert to speech...">Hello, this is Google TTS speaking! Welcome to the legal AI voice synthesis service.</textarea>
         </div>
         
         <div class="form-group">
             <label for="voice">Voice ID:</label>
             <select id="voice">
                 <option value="default">Default</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="male">Male (same as default)</option>
+                <option value="female">Female (same as default)</option>
+                <option value="slow">Slow Speech</option>
+                <option value="fast">Fast Speech</option>
             </select>
         </div>
         

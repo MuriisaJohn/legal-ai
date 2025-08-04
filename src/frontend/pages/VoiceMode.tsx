@@ -17,8 +17,13 @@ const VoiceMode = () => {
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [conversationHistory, setConversationHistory] = useState<OpenRouterMessage[]>([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [useBrowserTTS, setUseBrowserTTS] = useState(false); // User can toggle this
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isInterruptedRef = useRef(false);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>();
 
@@ -88,6 +93,11 @@ const VoiceMode = () => {
             }
           }
           
+          // If we detect speech while AI is speaking, interrupt it
+          if (isSpeaking && (finalTranscript || interimTranscript)) {
+            interruptSpeech();
+          }
+          
           setTranscript(finalTranscript || interimTranscript);
           
           if (finalTranscript) {
@@ -125,50 +135,172 @@ const VoiceMode = () => {
     setIsListening(false);
     stopAudioAnalysis();
   };
+  
+  // Function to interrupt current speech
+  const interruptSpeech = () => {
+    console.log('Interrupting current speech...');
+    isInterruptedRef.current = true;
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
+    setIsSpeaking(false);
+    // Clear browser TTS if it's speaking
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+    }
+  };
 
-  // Text-to-Speech function using Kyutai
+  // Text-to-Speech function using local TTS server with streaming for long responses
   const speakText = async (text: string) => {
     try {
-      console.log('Generating speech with Kyutai TTS for:', text.substring(0, 50) + '...');
+      console.log('Generating speech with local TTS server for:', text.substring(0, 50) + '...');
+      setIsSpeaking(true);
+      isInterruptedRef.current = false;
       
-      // Try to generate audio using Kyutai TTS service first
-      const audioBlob = await generateAudioFromText(text, 'default');
+      // Split long text into sentences for streaming playback
+      const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
       
-      // Create audio object and play
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-
-      audio.onended = () => {
-        // Auto-restart listening after TTS completes
+      if (sentences.length <= 1) {
+        // For short text, use single request
+        await playAudioFromServer(text);
+      } else {
+        // For long text, stream sentence by sentence
+        for (let i = 0; i < sentences.length; i++) {
+          if (isInterruptedRef.current) break; // Check for interruption
+          const sentence = sentences[i].trim();
+          if (sentence) {
+            await playAudioFromServer(sentence);
+            // Small delay between sentences for natural flow
+            if (!isInterruptedRef.current) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+          }
+        }
+      }
+      
+      setIsSpeaking(false);
+      
+      // Auto-restart listening after all audio completes
+      if (!isInterruptedRef.current) {
         setTimeout(() => {
           if (!isListening && !isProcessing) {
             startListening();
           }
         }, 1000);
-        
-        // Clean up the blob URL
-        URL.revokeObjectURL(audioUrl);
-      };
-
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        
-        // Clean up the blob URL on error
-        URL.revokeObjectURL(audioUrl);
-        
-        // Fallback to browser TTS
-        fallbackToBrowserTTS(text);
-      };
-
-      await audio.play();
-      console.log('Audio playback started successfully');
+      }
       
     } catch (error) {
-      console.error("TTS Error: ", error);
+      console.error("Local TTS Server Error: ", error);
+      setIsSpeaking(false);
       
-      // Fallback to browser TTS if Kyutai fails
-      fallbackToBrowserTTS(text);
+      // Only fallback to browser TTS if explicitly enabled
+      if (useBrowserTTS) {
+        console.log('User has enabled browser TTS fallback');
+        fallbackToBrowserTTS(text);
+      } else {
+        console.log('Browser TTS fallback is disabled. No audio will be played.');
+        toast({
+          title: "TTS Server Error",
+          description: "Unable to connect to TTS server. Audio disabled.",
+          variant: "destructive"
+        });
+        
+        // Still restart listening even if TTS fails
+        setTimeout(() => {
+          if (!isListening && !isProcessing) {
+            startListening();
+          }
+        }, 1000);
+      }
     }
+  };
+  
+  // Helper function to play audio from server
+  const playAudioFromServer = async (text: string): Promise<void> => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Check if interrupted before making request
+        if (isInterruptedRef.current) {
+          resolve();
+          return;
+        }
+        
+        console.log('Making TTS request to server for text:', text.substring(0, 50) + '...');
+        
+        const response = await fetch('http://localhost:5000/synthesize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            voice_id: 'default'
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`TTS server responded with status: ${response.status}`);
+        }
+        
+        // Get audio blob from response
+        const audioBlob = await response.blob();
+        console.log('Received audio blob:', {
+          size: audioBlob.size,
+          type: audioBlob.type
+        });
+        
+        // Validate that we received audio data
+        if (audioBlob.size === 0) {
+          throw new Error('Received empty audio blob from server');
+        }
+        
+        // Check if interrupted before playing
+        if (isInterruptedRef.current) {
+          resolve();
+          return;
+        }
+        
+        // Create audio object and play
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        // Store reference immediately for interruption
+        currentAudioRef.current = audio;
+
+        audio.oncanplaythrough = () => {
+          console.log('Audio is ready to play.');
+        };
+
+        audio.onended = () => {
+          console.log('Audio has ended.');
+          URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
+          resolve();
+        };
+
+        audio.onerror = (error) => {
+          console.error('Audio playback error:', error.message);
+          URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
+          reject(new Error('Failed to play audio.'));
+        };
+
+        try {
+          await audio.play();
+          console.log('Audio playback started successfully.');
+        } catch (playbackError) {
+          console.error('Error during audio playback:', playbackError);
+          URL.revokeObjectURL(audioUrl);
+          currentAudioRef.current = null;
+          reject(new Error('Playback failed: ' + playbackError.message));
+        }
+        
+      } catch (error) {
+        console.error('Error in playAudioFromServer:', error);
+        reject(error);
+      }
+    });
   };
   
   // Fallback function to use browser TTS
@@ -239,12 +371,16 @@ const VoiceMode = () => {
         return;
       }
       
-      // Prepare messages for OpenRouter
+      // Build messages with conversation history
+      const systemMessage: OpenRouterMessage = {
+        role: 'system',
+        content: `You are a knowledgeable Ugandan legal AI assistant having a natural conversation. Provide helpful, accurate legal guidance based on Ugandan law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes when applicable. If the user interrupts or changes topic, acknowledge it naturally and respond to their new query while maintaining context of the previous discussion when relevant.`
+      };
+      
+      // Include conversation history for context
       const messages: OpenRouterMessage[] = [
-        {
-          role: 'system',
-          content: `You are a knowledgeable Ugandan legal AI assistant. Provide helpful, accurate legal guidance based on Ugandan law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes when applicable.`
-        },
+        systemMessage,
+        ...conversationHistory,
         {
           role: 'user',
           content: text
@@ -253,6 +389,13 @@ const VoiceMode = () => {
       
       // Get response from OpenRouter
       const aiResponse = await generateResponseWithOpenRouter(messages, apiKey);
+      
+      // Update conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: text },
+        { role: 'assistant', content: aiResponse }
+      ]);
       
       setResponse(aiResponse);
       setIsProcessing(false);
