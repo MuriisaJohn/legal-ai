@@ -524,35 +524,18 @@ const VoiceMode = () => {
   const circleScale = 1 + audioLevel * 0.5;
   const glowIntensity = audioLevel * 100;
   return (
-    <div className="min-h-screen bg-gradient-to-br from-legal-dark via-gray-900 to-legal-primary flex flex-col">
+    <div className="h-screen bg-gradient-to-b from-gray-600 via-gray-700 to-gray-700 flex flex-col overflow-hidden">
       {/* AudioVisualizer with integrated controls */}
       <AudioVisualizer 
         onStartListening={startListening}
         onStopListening={stopListening}
         isListening={isListening}
         isProcessing={isProcessing}
+        isSpeaking={isSpeaking}
+        currentAudio={currentAudio}
         onClose={handleClose}
       />
       
-      {/* Conversation Overlay - showing transcript and response */}
-      {(transcript || response) && (
-        <div className="absolute top-4 left-4 right-4 max-w-4xl mx-auto">
-          <div className="bg-black/50 backdrop-blur-md rounded-lg p-4 space-y-3">
-            {transcript && (
-              <div className="text-white/80">
-                <span className="text-xs uppercase tracking-wider text-white/40">You:</span>
-                <p className="mt-1">{transcript}</p>
-              </div>
-            )}
-            {response && (
-              <div className="text-white">
-                <span className="text-xs uppercase tracking-wider text-white/40">AI:</span>
-                <p className="mt-1">{response}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

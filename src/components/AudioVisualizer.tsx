@@ -272,47 +272,60 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       dataArray = null;
     }
     
-    // Connect to audio element when speaking (AI response playback)
-    if (!audioUrl && isSpeaking && currentAudio && !audioSourceRef.current) {
-      try {
-        // Create or reuse audio context
-        if (!audioContextRef.current) {
-          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        }
-        
-        // Create analyser for playback audio
-        if (!audioAnalyserRef.current) {
-          audioAnalyserRef.current = audioContextRef.current.createAnalyser();
-          audioAnalyserRef.current.fftSize = 64;
-          audioAnalyserRef.current.smoothingTimeConstant = 0.8;
-        }
-        
+  // Connect to audio element when speaking (AI response playback)
+  if (!audioUrl && isSpeaking && currentAudio && !audioSourceRef.current) {
+    try {
+      // Create or reuse audio context
+      if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      // Resume audio context if it's suspended
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+      
+      // Create analyser for playback audio
+      if (!audioAnalyserRef.current) {
+        audioAnalyserRef.current = audioContextRef.current.createAnalyser();
+        audioAnalyserRef.current.fftSize = 64;
+        audioAnalyserRef.current.smoothingTimeConstant = 0.8;
+      }
+      
+      // Check if the audio element already has a source connected
+      // This prevents "The AudioContext was not allowed to start" error
+      if (!(currentAudio as any)._audioSourceConnected) {
         // Create source from audio element
         audioSourceRef.current = audioContextRef.current.createMediaElementSource(currentAudio);
         audioSourceRef.current.connect(audioAnalyserRef.current);
         audioAnalyserRef.current.connect(audioContextRef.current.destination);
         
-        // Use the same analyser variables for consistency
-        nativeAnalyser = audioAnalyserRef.current;
-        dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
+        // Mark audio element as having a connected source
+        (currentAudio as any)._audioSourceConnected = true;
         
         console.log('Connected audio playback to visualizer');
-      } catch (err) {
-        console.error('Error connecting audio playback to visualizer:', err);
+      } else {
+        console.log('Audio element already has a connected source');
       }
-    } else if (!isSpeaking && audioSourceRef.current) {
-      // Disconnect audio source when not speaking
-      try {
-        audioSourceRef.current.disconnect();
-        audioSourceRef.current = null;
-        if (!isListening) {
-          nativeAnalyser = null;
-          dataArray = null;
-        }
-      } catch (err) {
-        console.error('Error disconnecting audio source:', err);
-      }
+      
+      // Use the same analyser variables for consistency
+      nativeAnalyser = audioAnalyserRef.current;
+      dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
+      
+    } catch (err) {
+      console.error('Error connecting audio playback to visualizer:', err);
+      // If connection fails, we can still provide a simple amplitude-based visualization
+      console.log('Falling back to simulated visualization');
     }
+  } else if (!isSpeaking && audioSourceRef.current) {
+    // Don't disconnect the audio source completely as it can't be reconnected
+    // Just clear our reference
+    console.log('Audio playback stopped, clearing visualizer reference');
+    if (!isListening) {
+      nativeAnalyser = null;
+      dataArray = null;
+    }
+  }
 
     // Click handler for playing audio (if audio file is loaded)
     const handleClick = () => {
@@ -360,6 +373,13 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         // Amplify the frequency value for better visualization
         const avgFrequency = sum / dataArray.length;
         uniforms.u_frequency.value = avgFrequency * (isSpeaking ? 1.5 : 1.0); // Boost when speaking
+      } else if (isSpeaking) {
+        // Fallback: Simulate audio visualization when speaking but can't access audio data
+        // Create a pulsing effect that varies over time
+        const time = clock.getElapsedTime();
+        const baseFreq = 30 + Math.sin(time * 2) * 15; // Varies between 15-45
+        const variation = Math.sin(time * 5) * 10 + Math.cos(time * 3) * 5; // Add some complexity
+        uniforms.u_frequency.value = Math.max(0, baseFreq + variation);
       } else {
         uniforms.u_frequency.value = 0;
       }
@@ -434,9 +454,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     }
   };
 
-  return <div className="relative w-full h-screen bg-black overflow-hidden">
-            {/* Visualizer container - adjusted position */}
-            <div ref={mountRef} className="w-full h-full transform -translate-y-12" />
+  return <div className="relative w-full h-screen overflow-hidden">
+            {/* Visualizer container - full height */}
+            <div ref={mountRef} className="w-full h-full" />
             
             {audioUrl && !audioLoaded && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg">
                     Loading audio...
@@ -446,16 +466,16 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
                 </div>}
             
             {/* Audio Controls Bar */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6">
+            <div className="absolute bottom-0 left-0 right-0 p-6">
               <div className="flex items-center justify-center gap-6">
                 {/* Keyboard Button */}
                 <button
                   onClick={handleKeyboardToggle}
                   className={`rounded-full h-12 w-12 flex items-center justify-center transition-all duration-300 ${
                     isKeyboardMode 
-                      ? 'bg-white text-black shadow-lg shadow-white/20' 
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  } backdrop-blur-sm`}
+                      ? 'bg-white/90 text-gray-900 shadow-lg shadow-white/20' 
+                      : 'bg-white/20 text-white hover:bg-white/30 border border-white/20'
+                  }`}
                   title="Toggle Keyboard Input"
                 >
                   <Keyboard className="w-5 h-5" />
@@ -467,9 +487,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
                   disabled={isProcessing}
                   className={`rounded-full h-16 w-16 flex items-center justify-center transition-all duration-300 ${
                     isListening 
-                      ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse' 
-                      : 'bg-white hover:bg-white/90 text-legal-primary shadow-lg'
-                  } backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+                      ? 'bg-red-500/80 hover:bg-red-600/80 text-white shadow-lg shadow-red-500/30 animate-pulse border border-red-400/50' 
+                      : 'bg-white/90 hover:bg-white text-gray-900 shadow-lg border border-white/30'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                   title={isListening ? "Stop Listening" : "Start Listening"}
                 >
                   {isListening ? (
@@ -482,7 +502,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
                 {/* Close Button */}
                 <button
                   onClick={handleClose}
-                  className="rounded-full h-12 w-12 flex items-center justify-center bg-white/10 text-white hover:bg-red-500/20 hover:text-red-400 transition-all duration-300 backdrop-blur-sm"
+                  className="rounded-full h-12 w-12 flex items-center justify-center bg-white/20 text-white hover:bg-red-500/30 hover:text-red-300 transition-all duration-300 border border-white/20"
                   title="Close"
                 >
                   <X className="w-5 h-5" />
@@ -490,7 +510,74 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
               </div>
 
               {/* Status Indicators */}
-              <div className="flex justify-center mt-4 gap-4 text-white/60 text-sm">
+              <div className="flex justify-center mt-4 gap-4 text-white/80 text-sm">
+                {isProcessing && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                    Processing...
+                  </span>
+                )}
+                {isKeyboardMode && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    Keyboard input active
+                  </span>
+                )}
+                {isListening && !isProcessing && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    Listening...
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* Audio Controls Bar */}
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <div className="flex items-center justify-center gap-6">
+                {/* Keyboard Button */}
+                <button
+                  onClick={handleKeyboardToggle}
+                  className={`rounded-full h-12 w-12 flex items-center justify-center transition-all duration-300 ${
+                    isKeyboardMode 
+                      ? 'bg-white/90 text-gray-900 shadow-lg shadow-white/20' 
+                      : 'bg-white/20 text-white hover:bg-white/30 border border-white/20'
+                  }`}
+                  title="Toggle Keyboard Input"
+                >
+                  <Keyboard className="w-5 h-5" />
+                </button>
+
+                {/* Main Microphone Button - Larger and centered */}
+                <button
+                  onClick={handleMicToggle}
+                  disabled={isProcessing}
+                  className={`rounded-full h-16 w-16 flex items-center justify-center transition-all duration-300 ${
+                    isListening 
+                      ? 'bg-red-500/80 hover:bg-red-600/80 text-white shadow-lg shadow-red-500/30 animate-pulse border border-red-400/50' 
+                      : 'bg-white/90 hover:bg-white text-gray-900 shadow-lg border border-white/30'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isListening ? "Stop Listening" : "Start Listening"}
+                >
+                  {isListening ? (
+                    <MicOff className="w-6 h-6" />
+                  ) : (
+                    <Mic className="w-6 h-6" />
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={handleClose}
+                  className="rounded-full h-12 w-12 flex items-center justify-center bg-white/20 text-white hover:bg-red-500/30 hover:text-red-300 transition-all duration-300 border border-white/20"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Indicators */}
+              <div className="flex justify-center mt-4 gap-4 text-white/80 text-sm">
                 {isProcessing && (
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
