@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { Keyboard, Mic, MicOff, X } from 'lucide-react';
 
 interface AudioVisualizerProps {
@@ -64,7 +64,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     };
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 1.5, 0.4, 0.85);
     bloomPass.threshold = params.threshold;
     bloomPass.strength = params.strength;
     bloomPass.radius = params.radius;
@@ -446,7 +446,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
                 </div>}
             
             {/* Audio Controls Bar */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6">
+            <div className="absolute bottom-0 left-0 right-0 p-6">
               <div className="flex items-center justify-center gap-6">
                 {/* Keyboard Button */}
                 <button
