@@ -6,6 +6,7 @@ import { toast } from "@/components/ui/use-toast";
 import { generateStreamingResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
 import { streamAudioFromMoshi, streamTextToSpeech } from "@/services/kyutaiTTSService";
 import { formatMessageContent } from './Chat';
+import AudioVisualizer from '@/components/AudioVisualizer';
 
 const VoiceMode = () => {
   const navigate = useNavigate();
@@ -584,86 +585,48 @@ const VoiceMode = () => {
       </div>
 
       {/* Main Voice Visualization */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        {/* Central Voice Circle */}
-        <div className="relative mb-8">
-          <div 
-            className={`w-48 h-48 rounded-full border-2 transition-all duration-300 ${
-              isListening 
-                ? 'border-white shadow-lg' 
-                : 'border-white/50'
-            }`}
-            style={{
-              transform: `scale(${circleScale})`,
-              boxShadow: isListening 
-                ? `0 0 ${20 + glowIntensity}px rgba(255, 255, 255, 0.3), inset 0 0 ${10 + glowIntensity}px rgba(255, 255, 255, 0.1)`
-                : '0 0 20px rgba(255, 255, 255, 0.1)'
-            }}
-          >
-            {/* Inner animated circles */}
-            {isListening && (
-              <>
-                <div 
-                  className="absolute inset-4 rounded-full border border-white/30 transition-all duration-150"
-                  style={{
-                    transform: `scale(${1 + audioLevel * 0.3})`,
-                    opacity: 0.3 + audioLevel * 0.4,
-                    borderWidth: `${1 + audioLevel * 2}px`
-                  }}
-                ></div>
-                <div 
-                  className="absolute inset-8 rounded-full border border-white/20 transition-all duration-200"
-                  style={{
-                    transform: `scale(${1 + audioLevel * 0.5})`,
-                    opacity: 0.2 + audioLevel * 0.3
-                  }}
-                ></div>
-              </>
-            )}
-            
-            {/* Center icon */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {isProcessing ? (
-                <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <Volume2 className={`h-8 w-8 text-white ${isListening ? 'animate-pulse' : ''}`} />
-              )}
-            </div>
-          </div>
+      <div className="flex-1 relative">
+        {/* 3D Audio Visualizer */}
+        <div className="absolute inset-0">
+          <AudioVisualizer />
         </div>
+        
+        {/* Overlay UI Elements */}
+        <div className="relative z-10 h-full flex flex-col items-center justify-center px-6">
 
-        {/* Status Text */}
-        <div className="text-center mb-8">
-          {isProcessing ? (
-            <p className="text-white/80 text-lg">Processing your request...</p>
-          ) : transcript ? (
-            <div className="space-y-2">
-              <p className="text-white text-xl font-medium">{transcript}</p>
-              {animatedWords.length > 0 && (
-                <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
-                  <div className="flex flex-wrap gap-2 items-center justify-center">
-                    {animatedWords.map((word, index) => (
-                      <span
-                        key={index}
-                        className="text-white text-lg font-medium animate-fade-in"
-                        style={{
-                          animationDelay: `${index * 0.1}s`,
-                          transform: 'translateY(0)',
-                          opacity: 1
-                        }}
-                      >
-                        {word}
-                      </span>
-                    ))}
+          {/* Status Text */}
+          <div className="text-center mb-8">
+            {isProcessing ? (
+              <p className="text-white/80 text-lg">Processing your request...</p>
+            ) : transcript ? (
+              <div className="space-y-2">
+                <p className="text-white text-xl font-medium">{transcript}</p>
+                {animatedWords.length > 0 && (
+                  <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
+                    <div className="flex flex-wrap gap-2 items-center justify-center">
+                      {animatedWords.map((word, index) => (
+                        <span
+                          key={index}
+                          className="text-white text-lg font-medium animate-fade-in"
+                          style={{
+                            animationDelay: `${index * 0.1}s`,
+                            transform: 'translateY(0)',
+                            opacity: 1
+                          }}
+                        >
+                          {word}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ) : isListening ? (
-            <p className="text-white/80 text-lg">Go ahead, I'm listening</p>
-          ) : (
-            <p className="text-white/60 text-lg">Tap to start speaking</p>
-          )}
+                )}
+              </div>
+            ) : isListening ? (
+              <p className="text-white/80 text-lg">Go ahead, I'm listening</p>
+            ) : (
+              <p className="text-white/60 text-lg">Tap to start speaking</p>
+            )}
+          </div>
         </div>
       </div>
 
