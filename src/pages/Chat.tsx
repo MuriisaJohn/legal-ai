@@ -541,16 +541,16 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-legal-light">
+    <div className="flex flex-col h-screen bg-legal-light">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col">
-        <div className="mb-6 flex items-center">
+      <main className="flex-1 container mx-auto px-4 py-4 flex flex-col overflow-hidden">
+        <div className="mb-4 flex items-center">
           <MessageSquare className="mr-3 h-7 w-7 text-legal-secondary" />
           <h1 className="font-serif text-3xl font-bold text-legal-primary">AI Legal Assistant</h1>
         </div>
         
         {/* Enhanced Chat Interface */}
-        <div className="flex flex-col flex-1 bg-white rounded-lg shadow-lg border border-gray-100">
+        <div className="flex flex-col flex-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden">
           <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
             {/* Header/Tab Navigation */}
             <div className="border-b bg-gray-50 px-4 py-3 rounded-t-lg">
@@ -596,8 +596,8 @@ const Chat = () => {
             </div>
 
             {/* Chat Content Tab */}
-            <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <div className="flex-1 overflow-hidden bg-white p-4">
+            <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden mt-0">
+              <div className="flex-1 overflow-y-auto bg-white p-4">
                 <ScrollArea className="h-full">
                   <div className="space-y-6 pb-4">
                     {messages.map((message) => (
@@ -647,7 +647,24 @@ const Chat = () => {
                           <div className={`text-xs mt-1 px-1 text-gray-500 ${
                             message.sender === 'user' ? 'text-right' : 'text-left'
                           }`}>
-                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {(() => {
+                              try {
+                                // Ensure timestamp is a Date object
+                                const timestamp = message.timestamp instanceof Date 
+                                  ? message.timestamp 
+                                  : new Date(message.timestamp);
+                                
+                                // Validate the date
+                                if (isNaN(timestamp.getTime())) {
+                                  return 'Invalid time';
+                                }
+                                
+                                return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              } catch (error) {
+                                console.error('Error formatting timestamp:', error, message.timestamp);
+                                return 'Invalid time';
+                              }
+                            })()}
                           </div>
                         </div>
 
@@ -664,9 +681,9 @@ const Chat = () => {
                 </ScrollArea>
               </div>
 
-              {/* Message Input */}
-              <div className="border-t bg-gray-50 px-4 py-4 rounded-b-lg">
-                <div className="flex gap-3 items-end">
+              {/* Fixed Message Input */}
+              <div className="border-t bg-gray-50 px-4 py-4">
+                <div className="flex gap-3 items-center">
                   <div className="flex-1 relative">
                     <Input
                       value={inputValue}
@@ -675,7 +692,7 @@ const Chat = () => {
                       placeholder={activeDocument
                         ? `Ask about "${activeDocument.name}" or Ugandan law...`
                         : "Ask a question about Ugandan law..."}
-                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white"
+                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white h-12"
                       disabled={isLoading}
                     />
                     <Button
@@ -692,7 +709,7 @@ const Chat = () => {
             </TabsContent>
 
             {/* Document Info Tab */}
-            <TabsContent value="document" className="flex-1 p-4 overflow-y-auto bg-gray-50">
+            <TabsContent value="document" className="flex-1 p-4 overflow-y-auto bg-gray-50 mt-0">
               {activeDocument ? (
                 <Card className="max-w-2xl mx-auto shadow-md">
                   <CardContent className="p-6">

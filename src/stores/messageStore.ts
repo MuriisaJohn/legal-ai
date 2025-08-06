@@ -145,6 +145,60 @@ export const useMessageStore = create<MessageStore>()(
         conversationHistory: state.conversationHistory,
         activeDocument: state.activeDocument,
       }),
+      // Handle date serialization/deserialization
+      storage: {
+        getItem: (name) => {
+          try {
+            const str = localStorage.getItem(name);
+            if (!str) return null;
+            const data = JSON.parse(str);
+            // Convert timestamp strings back to Date objects
+            if (data.state?.messages) {
+              data.state.messages = data.state.messages.map((msg: any) => {
+                // Ensure timestamp is always a Date object
+                let timestamp = new Date();
+                if (msg.timestamp) {
+                  // Handle both string and Date object cases
+                  if (typeof msg.timestamp === 'string') {
+                    timestamp = new Date(msg.timestamp);
+                  } else if (msg.timestamp instanceof Date) {
+                    timestamp = msg.timestamp;
+                  } else {
+                    // Fallback for any other format
+                    timestamp = new Date(msg.timestamp);
+                  }
+                  // Validate the date
+                  if (isNaN(timestamp.getTime())) {
+                    timestamp = new Date();
+                  }
+                }
+                return {
+                  ...msg,
+                  timestamp,
+                };
+              });
+            }
+            return data;
+          } catch (error) {
+            console.error('Error deserializing message store data:', error);
+            return null;
+          }
+        },
+        setItem: (name, value) => {
+          try {
+            localStorage.setItem(name, JSON.stringify(value));
+          } catch (error) {
+            console.error('Error serializing message store data:', error);
+          }
+        },
+        removeItem: (name) => {
+          try {
+            localStorage.removeItem(name);
+          } catch (error) {
+            console.error('Error removing message store data:', error);
+          }
+        },
+      },
     }
   )
 );

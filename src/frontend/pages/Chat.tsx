@@ -17,6 +17,7 @@ import {
   summarizeDocumentStreaming,
   analyzeDocumentContentStreaming
 } from '@/frontend/services/openRouterService';
+import { useMessageStore, useInitialGreeting } from '@/stores/messageStore';
 
 type Document = {
   id: string;
@@ -333,37 +334,26 @@ export type { FormatOptions };
 
 const Chat = () => {
   const navigate = useNavigate();
-  const [activeDocument, setActiveDocument] = useState<Document | undefined>(undefined);
-  const [messages, setMessages] = useState<Message[]>([]);
+  
+  // Use shared message store
+  const {
+    messages,
+    activeDocument,
+    isProcessing,
+    addMessage,
+    setActiveDocument,
+    setProcessing,
+    getConversationContext
+  } = useMessageStore();
+  
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
-  // Initial greeting message
-  useEffect(() => {
-    if (messages.length === 0 && activeDocument) {
-      const hasContent = activeDocument.content ? " I can analyze its content and " : " ";
-      setMessages([
-        {
-          id: 'welcome',
-          content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
-    } else if (messages.length === 0) {
-      setMessages([
-        {
-          id: 'welcome',
-          content: "Welcome! I'm your Ugandan legal assistant. I can help with questions about land law, business regulations, criminal law, family law, and constitutional rights. How may I assist you today?",
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
-    }
-  }, [activeDocument]);
+  // Use initial greeting hook
+  useInitialGreeting();
 
 
   const handleSendMessage = async () => {
@@ -378,67 +368,58 @@ const Chat = () => {
       return;
     }
 
-    const userMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+    // Add user message to shared store
+    addMessage({
       content: inputValue,
       sender: 'user',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+      source: 'chat'
+    });
+    
+    const userInput = inputValue;
     setInputValue('');
 
     // Greeting check
-    if (isGreeting(inputValue)) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `msg-${Date.now()}-ai`,
-          content: "Hello! How can I assist you with your legal questions today?",
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
+    if (isGreeting(userInput)) {
+      addMessage({
+        content: "Hello! How can I assist you with your legal questions today?",
+        sender: 'ai',
+        source: 'chat'
+      });
       return;
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
-    // Prepare conversational context (last 10 messages)
-    const lastMessages = [...messages, userMessage].slice(-10);
-    const context = lastMessages.map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n');
+    // Get conversational context from store
+    const context = getConversationContext(10);
 
-    // Create an initial AI message for streaming
-    const aiMessageId = `msg-${Date.now()}-ai`;
-    const initialAiMessage: Message = {
-      id: aiMessageId,
-      content: '',
-      sender: 'ai',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, initialAiMessage]);
+    // For streaming, we'll collect the response and add it at the end
+    let fullResponse = '';
 
     try {
       await answerQuestionStreaming(
-        inputValue,
+        userInput,
         context,
         activeDocument?.name || null,
         activeDocument?.content || null,
         apiKey,
-        // onChunk callback - append each chunk to the message
+        // onChunk callback - collect chunks
         (chunk: string) => {
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === aiMessageId 
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            )
-          );
+          fullResponse += chunk;
         },
         // onComplete callback
         () => {
+          // Add the complete AI response to the store
+          if (fullResponse.trim()) {
+            addMessage({
+              content: fullResponse,
+              sender: 'ai',
+              source: 'chat'
+            });
+          }
           setIsLoading(false);
+          setProcessing(false);
         },
         // onError callback
         (error: Error) => {
@@ -447,13 +428,12 @@ const Chat = () => {
           let errorContent = "I apologize, but I encountered an error while processing your request. ";
           errorContent += `Error details: ${error.message}`;
 
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === aiMessageId 
-                ? { ...msg, content: errorContent, isError: true }
-                : msg
-            )
-          );
+          addMessage({
+            content: errorContent,
+            sender: 'ai',
+            source: 'chat',
+            isError: true
+          });
           
           toast({
             title: "API Error",
@@ -462,6 +442,7 @@ const Chat = () => {
           });
           
           setIsLoading(false);
+          setProcessing(false);
         }
       );
     } catch (error) {
@@ -474,15 +455,12 @@ const Chat = () => {
         errorContent += "Please check the console for more details.";
       }
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: errorContent,
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "API Error",
@@ -491,6 +469,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -514,26 +493,16 @@ const Chat = () => {
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
-    const summaryRequestMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+    // Add user request to shared store
+    addMessage({
       content: `Summarize "${activeDocument.name}"`,
       sender: 'user',
-      timestamp: new Date()
-    };
+      source: 'chat'
+    });
 
-    setMessages(prev => [...prev, summaryRequestMessage]);
-
-    // Create an initial AI message for streaming summary
-    const summaryMessageId = `msg-${Date.now()}-ai`;
-    const initialSummaryMessage: Message = {
-      id: summaryMessageId,
-      content: `Document Summary for "${activeDocument.name}": `,
-      sender: 'ai',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, initialSummaryMessage]);
+    let fullSummary = `Document Summary for "${activeDocument.name}": `;
 
     try {
       await summarizeDocumentStreaming(
@@ -542,29 +511,29 @@ const Chat = () => {
         apiKey,
         // onChunk callback
         (chunk: string) => {
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === summaryMessageId 
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            )
-          );
+          fullSummary += chunk;
         },
         // onComplete callback
         () => {
+          // Add complete summary to store
+          addMessage({
+            content: fullSummary,
+            sender: 'ai',
+            source: 'chat'
+          });
           setIsLoading(false);
+          setProcessing(false);
         },
         // onError callback
         (error: Error) => {
           console.error("Error summarizing document:", error);
           
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === summaryMessageId 
-                ? { ...msg, content: error.message || "Failed to summarize the document. Please try again.", isError: true }
-                : msg
-            )
-          );
+          addMessage({
+            content: error.message || "Failed to summarize the document. Please try again.",
+            sender: 'ai',
+            source: 'chat',
+            isError: true
+          });
           
           toast({
             title: "Error",
@@ -573,20 +542,18 @@ const Chat = () => {
           });
           
           setIsLoading(false);
+          setProcessing(false);
         }
       );
     } catch (error) {
       console.error("Error summarizing document:", error);
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: error instanceof Error ? error.message : "Failed to summarize the document. Please try again.",
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "Error",
@@ -595,6 +562,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -609,27 +577,16 @@ const Chat = () => {
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
-    // Create user message for analysis request
-    const analysisRequestMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+    // Add user request to shared store
+    addMessage({
       content: `Analyze "${activeDocument.name}"`,
       sender: 'user',
-      timestamp: new Date()
-    };
+      source: 'chat'
+    });
 
-    setMessages(prev => [...prev, analysisRequestMessage]);
-
-    // Create an initial AI message for streaming analysis
-    const analysisMessageId = `msg-${Date.now()}-ai`;
-    const initialAnalysisMessage: Message = {
-      id: analysisMessageId,
-      content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`,
-      sender: 'ai',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, initialAnalysisMessage]);
+    let fullAnalysis = `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`;
 
     try {
       await analyzeDocumentContentStreaming(
@@ -638,29 +595,29 @@ const Chat = () => {
         apiKey,
         // onChunk callback
         (chunk: string) => {
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === analysisMessageId 
-                ? { ...msg, content: msg.content + chunk }
-                : msg
-            )
-          );
+          fullAnalysis += chunk;
         },
         // onComplete callback
         () => {
+          // Add complete analysis to store
+          addMessage({
+            content: fullAnalysis,
+            sender: 'ai',
+            source: 'chat'
+          });
           setIsLoading(false);
+          setProcessing(false);
         },
         // onError callback
         (error: Error) => {
           console.error("Error analyzing document:", error);
           
-          setMessages(prev => 
-            prev.map(msg => 
-              msg.id === analysisMessageId 
-                ? { ...msg, content: error.message || "Failed to analyze the document. Please try again.", isError: true }
-                : msg
-            )
-          );
+          addMessage({
+            content: error.message || "Failed to analyze the document. Please try again.",
+            sender: 'ai',
+            source: 'chat',
+            isError: true
+          });
           
           toast({
             title: "Error",
@@ -669,20 +626,18 @@ const Chat = () => {
           });
           
           setIsLoading(false);
+          setProcessing(false);
         }
       );
     } catch (error) {
       console.error("Error analyzing document:", error);
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: error instanceof Error ? error.message : "Failed to analyze the document. Please try again.",
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "Error",
@@ -691,6 +646,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -706,16 +662,16 @@ const Chat = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-legal-light">
+    <div className="flex flex-col h-screen bg-legal-light">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-8 flex flex-col">
-        <div className="mb-6 flex items-center">
+      <main className="flex-1 container mx-auto px-4 py-4 flex flex-col overflow-hidden">
+        <div className="mb-4 flex items-center">
           <MessageSquare className="mr-3 h-7 w-7 text-legal-secondary" />
           <h1 className="font-serif text-3xl font-bold text-legal-primary">AI Legal Assistant</h1>
         </div>
         
         {/* Enhanced Chat Interface */}
-        <div className="flex flex-col flex-1 bg-white rounded-lg shadow-lg border border-gray-100">
+        <div className="flex flex-col flex-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden">
           <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
             {/* Header/Tab Navigation */}
             <div className="border-b bg-gray-50 px-4 py-3 rounded-t-lg">
@@ -761,8 +717,8 @@ const Chat = () => {
             </div>
 
             {/* Chat Content Tab */}
-            <TabsContent value="chat" className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              <div className="flex-1 overflow-hidden bg-white p-4">
+            <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden mt-0">
+              <div className="flex-1 overflow-y-auto bg-white p-4">
                 <ScrollArea className="h-full">
                   <div className="space-y-6 pb-4">
                     {messages.map((message) => (
@@ -812,7 +768,24 @@ const Chat = () => {
                           <div className={`text-xs mt-1 px-1 text-gray-500 ${
                             message.sender === 'user' ? 'text-right' : 'text-left'
                           }`}>
-                            {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {(() => {
+                              try {
+                                // Ensure timestamp is a Date object
+                                const timestamp = message.timestamp instanceof Date 
+                                  ? message.timestamp 
+                                  : new Date(message.timestamp);
+                                
+                                // Validate the date
+                                if (isNaN(timestamp.getTime())) {
+                                  return 'Invalid time';
+                                }
+                                
+                                return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                              } catch (error) {
+                                console.error('Error formatting timestamp:', error, message.timestamp);
+                                return 'Invalid time';
+                              }
+                            })()}
                           </div>
                         </div>
 
@@ -829,9 +802,9 @@ const Chat = () => {
                 </ScrollArea>
               </div>
 
-              {/* Message Input */}
-              <div className="border-t bg-gray-50 px-4 py-4 rounded-b-lg">
-                <div className="flex gap-3 items-end">
+              {/* Fixed Message Input */}
+              <div className="border-t bg-gray-50 px-4 py-4">
+                <div className="flex gap-3 items-center">
                   <div className="flex-1 relative">
                     <Input
                       value={inputValue}
@@ -840,7 +813,7 @@ const Chat = () => {
                       placeholder={activeDocument
                         ? `Ask about "${activeDocument.name}" or Ugandan law...`
                         : "Ask a question about Ugandan law..."}
-                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-24 py-3 shadow-sm bg-white"
+                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-24 py-3 shadow-sm bg-white h-12"
                       disabled={isLoading || isListening}
                     />
                     
@@ -878,7 +851,7 @@ const Chat = () => {
             </TabsContent>
 
             {/* Document Info Tab */}
-            <TabsContent value="document" className="flex-1 p-4 overflow-y-auto bg-gray-50">
+            <TabsContent value="document" className="flex-1 p-4 overflow-y-auto bg-gray-50 mt-0">
               {activeDocument ? (
                 <Card className="max-w-2xl mx-auto shadow-md">
                   <CardContent className="p-6">
