@@ -535,26 +535,7 @@ const VoiceMode = () => {
         </div>
         
         {/* Overlay UI Elements */}
-        <div className="relative z-10 h-full flex flex-col items-center justify-center px-6">
-
-          {/* Status Text */}
-          <div className="text-center mb-8">
-            {isProcessing ? <p className="text-white/80 text-lg">Processing your request...</p> : transcript ? <div className="space-y-2">
-                <p className="text-white text-xl font-medium">{transcript}</p>
-                {animatedWords.length > 0 && <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
-                    <div className="flex flex-wrap gap-2 items-center justify-center">
-                      {animatedWords.map((word, index) => <span key={index} className="text-white text-lg font-medium animate-fade-in" style={{
-                  animationDelay: `${index * 0.1}s`,
-                  transform: 'translateY(0)',
-                  opacity: 1
-                }}>
-                          {word}
-                        </span>)}
-                    </div>
-                  </div>}
-              </div> : isListening ? <p className="text-white/80 text-lg">Go ahead, I'm listening</p> : <p className="text-white/60 text-lg">Tap to start speaking</p>}
-          </div>
-        </div>
+        
       </div>
 
       {/* Bottom Controls */}
