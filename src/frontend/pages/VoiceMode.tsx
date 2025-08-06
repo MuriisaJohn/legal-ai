@@ -7,7 +7,6 @@ import { generateStreamingResponseWithOpenRouter, OpenRouterMessage } from "@/fr
 import { streamAudioFromMoshi, streamTextToSpeech } from "@/services/kyutaiTTSService";
 import { formatMessageContent } from './Chat';
 import AudioVisualizer from '@/components/AudioVisualizer';
-
 const VoiceMode = () => {
   const navigate = useNavigate();
   const [isListening, setIsListening] = useState(false);
@@ -30,16 +29,16 @@ const VoiceMode = () => {
   // Voice visualization effect
   const startAudioAnalysis = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
       audioContextRef.current = new AudioContext();
       analyzerRef.current = audioContextRef.current.createAnalyser();
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyzerRef.current);
-      
       analyzerRef.current.fftSize = 256;
       const bufferLength = analyzerRef.current.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
-      
       const updateAudioLevel = () => {
         if (analyzerRef.current && isListening) {
           analyzerRef.current.getByteFrequencyData(dataArray);
@@ -48,13 +47,11 @@ const VoiceMode = () => {
           animationRef.current = requestAnimationFrame(updateAudioLevel);
         }
       };
-      
       updateAudioLevel();
     } catch (error) {
       console.error('Audio analysis error:', error);
     }
   };
-
   const stopAudioAnalysis = () => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -65,27 +62,22 @@ const VoiceMode = () => {
     }
     setAudioLevel(0);
   };
-
   const startListening = async () => {
     try {
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
         recognitionRef.current = new SpeechRecognition();
-        
         recognitionRef.current.continuous = true;
         recognitionRef.current.interimResults = true;
         recognitionRef.current.lang = 'en-US';
-        
         recognitionRef.current.onstart = () => {
           setIsListening(true);
           setTranscript('');
           startAudioAnalysis();
         };
-        
         recognitionRef.current.onresult = (event: any) => {
           let finalTranscript = '';
           let interimTranscript = '';
-          
           for (let i = event.resultIndex; i < event.results.length; i++) {
             if (event.results[i].isFinal) {
               finalTranscript += event.results[i][0].transcript;
@@ -93,19 +85,16 @@ const VoiceMode = () => {
               interimTranscript += event.results[i][0].transcript;
             }
           }
-          
+
           // If we detect speech while AI is speaking, interrupt it
           if (isSpeaking && (finalTranscript || interimTranscript)) {
             interruptSpeech();
           }
-          
           setTranscript(finalTranscript || interimTranscript);
-          
           if (finalTranscript) {
             processVoiceInput(finalTranscript);
           }
         };
-        
         recognitionRef.current.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           stopListening();
@@ -115,7 +104,6 @@ const VoiceMode = () => {
             variant: "destructive"
           });
         };
-        
         recognitionRef.current.start();
       } else {
         throw new Error('Speech recognition not supported');
@@ -128,7 +116,6 @@ const VoiceMode = () => {
       });
     }
   };
-
   const stopListening = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -162,13 +149,11 @@ const VoiceMode = () => {
       console.log('Streaming audio for:', text.substring(0, 50) + '...');
       setIsSpeaking(true);
       isInterruptedRef.current = false;
-
       let audioChunks: Uint8Array[] = [];
       const audioContext = new AudioContext();
-      
       await streamAudioFromMoshi(text, {
         voiceId: 'default',
-        onAudioChunk: (chunk) => {
+        onAudioChunk: chunk => {
           if (!isInterruptedRef.current) {
             audioChunks.push(chunk);
           }
@@ -176,20 +161,20 @@ const VoiceMode = () => {
         onComplete: async () => {
           if (!isInterruptedRef.current && audioChunks.length > 0) {
             // Combine all chunks into a single blob
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioBlob = new Blob(audioChunks, {
+              type: 'audio/wav'
+            });
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
-            
             setCurrentAudio(audio);
             currentAudioRef.current = audio;
-
             audio.onended = () => {
               console.log('Audio playback completed');
               setIsSpeaking(false);
               setCurrentAudio(null);
               currentAudioRef.current = null;
               URL.revokeObjectURL(audioUrl);
-              
+
               // Auto-restart listening
               setTimeout(() => {
                 if (!isListening && !isProcessing) {
@@ -197,14 +182,12 @@ const VoiceMode = () => {
                 }
               }, 1000);
             };
-
             audio.onerror = () => {
               console.error('Audio playback error');
               setIsSpeaking(false);
               URL.revokeObjectURL(audioUrl);
               fallbackToBrowserTTS(text);
             };
-
             try {
               await audio.play();
             } catch (playError) {
@@ -213,7 +196,7 @@ const VoiceMode = () => {
             }
           }
         },
-        onError: (error) => {
+        onError: error => {
           console.error('Streaming error:', error);
           setIsSpeaking(false);
           fallbackToBrowserTTS(text);
@@ -225,7 +208,7 @@ const VoiceMode = () => {
       fallbackToBrowserTTS(text);
     }
   };
-  
+
   // Audio pause/resume functionality
   const handleAudioPause = () => {
     if (currentAudio) {
@@ -263,14 +246,12 @@ const VoiceMode = () => {
       }, 1000);
       return;
     }
-    
     if ('speechSynthesis' in window) {
       console.log('Falling back to browser TTS');
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.9;
       utterance.pitch = 1;
       utterance.volume = 0.8;
-      
       utterance.onend = () => {
         setIsAudioPaused(false);
         setIsSpeaking(false);
@@ -280,12 +261,11 @@ const VoiceMode = () => {
           }
         }, 1000);
       };
-      
-      utterance.onerror = (error) => {
+      utterance.onerror = error => {
         console.error('Browser TTS error:', error);
         setIsAudioPaused(false);
         setIsSpeaking(false);
-        
+
         // Don't show error toast for permission issues
         if (error.error !== 'not-allowed') {
           toast({
@@ -294,7 +274,7 @@ const VoiceMode = () => {
             variant: "destructive"
           });
         }
-        
+
         // Still restart listening even if TTS fails
         setTimeout(() => {
           if (!isListening && !isProcessing) {
@@ -302,7 +282,6 @@ const VoiceMode = () => {
           }
         }, 2000);
       };
-      
       try {
         speechSynthesis.speak(utterance);
       } catch (e) {
@@ -330,26 +309,22 @@ const VoiceMode = () => {
   const animateResponseText = (text: string) => {
     const words = text.split(' ');
     setAnimatedWords([]);
-    
     words.forEach((word, index) => {
       setTimeout(() => {
         setAnimatedWords(prev => [...prev, word]);
       }, index * 200); // 200ms delay between words
     });
   };
-
   const processVoiceInput = async (text: string) => {
     setIsProcessing(true);
     stopListening(); // Stop listening while processing
-    
+
     // Clear previous response
     setResponse('');
     setAnimatedWords([]);
-    
     try {
       // Get API key
       const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || localStorage.getItem('openrouter_api_key');
-      
       if (!apiKey) {
         toast({
           title: "API Key Missing",
@@ -359,7 +334,7 @@ const VoiceMode = () => {
         setIsProcessing(false);
         return;
       }
-      
+
       // Build messages with conversation history
       const systemMessage: OpenRouterMessage = {
         role: 'system',
@@ -367,169 +342,154 @@ const VoiceMode = () => {
         accurate legal guidance based on Ugandan law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes when applicable. If the user interrupts or changes topic, acknowledge it naturally
          and respond to their new query while maintaining context of the previous discussion when relevant.responses should be very short and concise, ideally under 30 words.`
       };
-      
+
       // Include conversation history for context
-      const messages: OpenRouterMessage[] = [
-        systemMessage,
-        ...conversationHistory,
-        {
-          role: 'user',
-          content: text
-        }
-      ];
-      
+      const messages: OpenRouterMessage[] = [systemMessage, ...conversationHistory, {
+        role: 'user',
+        content: text
+      }];
       let fullResponse = '';
       let hasStartedAudio = false;
 
       // Get response from OpenRouter
-      await generateStreamingResponseWithOpenRouter(
-        messages,
-        apiKey,
-        (chunk) => {
-          fullResponse += chunk;
-          setResponse(fullResponse);
-          animateResponseText(fullResponse);
-        },
-        () => {
-          setIsProcessing(false);
+      await generateStreamingResponseWithOpenRouter(messages, apiKey, chunk => {
+        fullResponse += chunk;
+        setResponse(fullResponse);
+        animateResponseText(fullResponse);
+      }, () => {
+        setIsProcessing(false);
 
-          // Update conversation history with the complete response
-          setConversationHistory(prev => [
-            ...prev,
-            { role: 'user', content: text },
-            { role: 'assistant', content: fullResponse }
-          ]);
+        // Update conversation history with the complete response
+        setConversationHistory(prev => [...prev, {
+          role: 'user',
+          content: text
+        }, {
+          role: 'assistant',
+          content: fullResponse
+        }]);
 
-          // Only stream audio once when complete
-          if (!hasStartedAudio && fullResponse.trim()) {
-            hasStartedAudio = true;
-            
-            // Enhanced audio streaming - process sentences separately but play sequentially
-            const sentences = fullResponse.match(/[^.!?]+[.!?]+/g) || [fullResponse];
-            const audioQueue: Array<{ index: number; chunks: Uint8Array[] }> = [];
-            let currentPlayingIndex = 0;
-            let processedCount = 0;
-            
-            setIsSpeaking(true);
-            
-            // Function to play audio chunks sequentially
-            const playNextAudio = async () => {
-              if (isInterruptedRef.current) return;
-              
-              const nextAudio = audioQueue.find(a => a.index === currentPlayingIndex);
-              if (!nextAudio || nextAudio.chunks.length === 0) {
-                // Check if all sentences have been processed
-                if (processedCount === sentences.length) {
-                  setIsSpeaking(false);
-                  // Auto-restart listening
-                  setTimeout(() => {
-                    if (!isListening && !isProcessing) {
-                      startListening();
-                    }
-                  }, 1000);
-                }
-                return;
+        // Only stream audio once when complete
+        if (!hasStartedAudio && fullResponse.trim()) {
+          hasStartedAudio = true;
+
+          // Enhanced audio streaming - process sentences separately but play sequentially
+          const sentences = fullResponse.match(/[^.!?]+[.!?]+/g) || [fullResponse];
+          const audioQueue: Array<{
+            index: number;
+            chunks: Uint8Array[];
+          }> = [];
+          let currentPlayingIndex = 0;
+          let processedCount = 0;
+          setIsSpeaking(true);
+
+          // Function to play audio chunks sequentially
+          const playNextAudio = async () => {
+            if (isInterruptedRef.current) return;
+            const nextAudio = audioQueue.find(a => a.index === currentPlayingIndex);
+            if (!nextAudio || nextAudio.chunks.length === 0) {
+              // Check if all sentences have been processed
+              if (processedCount === sentences.length) {
+                setIsSpeaking(false);
+                // Auto-restart listening
+                setTimeout(() => {
+                  if (!isListening && !isProcessing) {
+                    startListening();
+                  }
+                }, 1000);
               }
-              
-              const audioBlob = new Blob(nextAudio.chunks, { type: 'audio/wav' });
-              const audioUrl = URL.createObjectURL(audioBlob);
-              const audio = new Audio(audioUrl);
-              
-              setCurrentAudio(audio);
-              currentAudioRef.current = audio;
-              
-              audio.onended = () => {
-                URL.revokeObjectURL(audioUrl);
+              return;
+            }
+            const audioBlob = new Blob(nextAudio.chunks, {
+              type: 'audio/wav'
+            });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            setCurrentAudio(audio);
+            currentAudioRef.current = audio;
+            audio.onended = () => {
+              URL.revokeObjectURL(audioUrl);
+              currentPlayingIndex++;
+              playNextAudio(); // Play next audio in queue
+            };
+            audio.onerror = () => {
+              console.error('Audio playback error');
+              URL.revokeObjectURL(audioUrl);
+              currentPlayingIndex++;
+              playNextAudio(); // Try next audio even if current fails
+            };
+            try {
+              await audio.play();
+            } catch (playError) {
+              console.error('Play error:', playError);
+              if (playError.name === 'NotAllowedError') {
+                fallbackToBrowserTTS(fullResponse);
+              } else {
                 currentPlayingIndex++;
-                playNextAudio(); // Play next audio in queue
-              };
-              
-              audio.onerror = () => {
-                console.error('Audio playback error');
-                URL.revokeObjectURL(audioUrl);
-                currentPlayingIndex++;
-                playNextAudio(); // Try next audio even if current fails
-              };
-              
-              try {
-                await audio.play();
-              } catch (playError) {
-                console.error('Play error:', playError);
-                if (playError.name === 'NotAllowedError') {
-                  fallbackToBrowserTTS(fullResponse);
-                } else {
+                playNextAudio();
+              }
+            }
+          };
+
+          // Process each sentence for TTS
+          sentences.forEach((sentence, index) => {
+            const audioChunks: Uint8Array[] = [];
+            streamAudioFromMoshi(sentence.trim(), {
+              voiceId: 'default',
+              onAudioChunk: chunk => {
+                if (!isInterruptedRef.current) {
+                  audioChunks.push(chunk);
+                }
+              },
+              onComplete: () => {
+                if (!isInterruptedRef.current) {
+                  audioQueue.push({
+                    index,
+                    chunks: audioChunks
+                  });
+                  audioQueue.sort((a, b) => a.index - b.index);
+                  processedCount++;
+
+                  // Start playing if this is the first audio ready
+                  if (currentPlayingIndex === index) {
+                    playNextAudio();
+                  }
+                }
+              },
+              onError: error => {
+                console.error('Error streaming audio for sentence:', error);
+                processedCount++;
+                // Try to continue with next sentence
+                if (currentPlayingIndex === index) {
                   currentPlayingIndex++;
                   playNextAudio();
                 }
               }
-            };
-            
-            // Process each sentence for TTS
-            sentences.forEach((sentence, index) => {
-              const audioChunks: Uint8Array[] = [];
-              
-              streamAudioFromMoshi(sentence.trim(), {
-                voiceId: 'default',
-                onAudioChunk: (chunk) => {
-                  if (!isInterruptedRef.current) {
-                    audioChunks.push(chunk);
-                  }
-                },
-                onComplete: () => {
-                  if (!isInterruptedRef.current) {
-                    audioQueue.push({ index, chunks: audioChunks });
-                    audioQueue.sort((a, b) => a.index - b.index);
-                    processedCount++;
-                    
-                    // Start playing if this is the first audio ready
-                    if (currentPlayingIndex === index) {
-                      playNextAudio();
-                    }
-                  }
-                },
-                onError: (error) => {
-                  console.error('Error streaming audio for sentence:', error);
-                  processedCount++;
-                  // Try to continue with next sentence
-                  if (currentPlayingIndex === index) {
-                    currentPlayingIndex++;
-                    playNextAudio();
-                  }
-                }
-              });
             });
-          }
-        },
-        (error) => {
-          console.error('Error in OpenRouter streaming:', error);
-          setIsProcessing(false);
-          const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
-          setResponse(errorMessage);
-
-          if (!hasStartedAudio) {
-            hasStartedAudio = true;
-            streamAudio(errorMessage);
-          }
-
-          toast({
-            title: "Processing Error",
-            description: "Failed to get AI response. Please check your connection and API key.",
-            variant: "destructive"
           });
         }
-      );
-      
-      
+      }, error => {
+        console.error('Error in OpenRouter streaming:', error);
+        setIsProcessing(false);
+        const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
+        setResponse(errorMessage);
+        if (!hasStartedAudio) {
+          hasStartedAudio = true;
+          streamAudio(errorMessage);
+        }
+        toast({
+          title: "Processing Error",
+          description: "Failed to get AI response. Please check your connection and API key.",
+          variant: "destructive"
+        });
+      });
     } catch (error) {
       console.error('Error processing voice input:', error);
       setIsProcessing(false);
-      
       const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
       setResponse(errorMessage);
-      
+
       // Stream error message audio
       streamAudio(errorMessage);
-      
       toast({
         title: "Processing Error",
         description: "Failed to get AI response. Please check your connection and API key.",
@@ -537,16 +497,14 @@ const VoiceMode = () => {
       });
     }
   };
-
   const handleClose = () => {
     stopListening();
     navigate('/chat');
   };
-
   useEffect(() => {
     // Store ElevenLabs API key
     localStorage.setItem('elevenlabs_api_key', 'sk_d91f55420e595ec0f8a45c4588f7846ecbbcd91e340591c9');
-    
+
     // Clean up on unmount
     return () => {
       if (recognitionRef.current) {
@@ -563,26 +521,11 @@ const VoiceMode = () => {
   }, []);
 
   // Calculate circle scale based on audio level
-  const circleScale = 1 + (audioLevel * 0.5);
+  const circleScale = 1 + audioLevel * 0.5;
   const glowIntensity = audioLevel * 100;
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-legal-dark via-gray-900 to-legal-primary flex flex-col">
+  return <div className="min-h-screen bg-gradient-to-br from-legal-dark via-gray-900 to-legal-primary flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 text-white">
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span className="text-sm font-medium">Speaking to Legal AI</span>
-        </div>
-        <Button
-          onClick={handleClose}
-          size="sm"
-          variant="ghost"
-          className="text-white hover:bg-white/10 rounded-full h-8 w-8 p-0"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      
 
       {/* Main Voice Visualization */}
       <div className="flex-1 relative">
@@ -596,36 +539,20 @@ const VoiceMode = () => {
 
           {/* Status Text */}
           <div className="text-center mb-8">
-            {isProcessing ? (
-              <p className="text-white/80 text-lg">Processing your request...</p>
-            ) : transcript ? (
-              <div className="space-y-2">
+            {isProcessing ? <p className="text-white/80 text-lg">Processing your request...</p> : transcript ? <div className="space-y-2">
                 <p className="text-white text-xl font-medium">{transcript}</p>
-                {animatedWords.length > 0 && (
-                  <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
+                {animatedWords.length > 0 && <div className="backdrop-blur-md bg-white/10 border border-white/20 rounded-2xl p-6 mt-4 shadow-2xl">
                     <div className="flex flex-wrap gap-2 items-center justify-center">
-                      {animatedWords.map((word, index) => (
-                        <span
-                          key={index}
-                          className="text-white text-lg font-medium animate-fade-in"
-                          style={{
-                            animationDelay: `${index * 0.1}s`,
-                            transform: 'translateY(0)',
-                            opacity: 1
-                          }}
-                        >
+                      {animatedWords.map((word, index) => <span key={index} className="text-white text-lg font-medium animate-fade-in" style={{
+                  animationDelay: `${index * 0.1}s`,
+                  transform: 'translateY(0)',
+                  opacity: 1
+                }}>
                           {word}
-                        </span>
-                      ))}
+                        </span>)}
                     </div>
-                  </div>
-                )}
-              </div>
-            ) : isListening ? (
-              <p className="text-white/80 text-lg">Go ahead, I'm listening</p>
-            ) : (
-              <p className="text-white/60 text-lg">Tap to start speaking</p>
-            )}
+                  </div>}
+              </div> : isListening ? <p className="text-white/80 text-lg">Go ahead, I'm listening</p> : <p className="text-white/60 text-lg">Tap to start speaking</p>}
           </div>
         </div>
       </div>
@@ -634,47 +561,21 @@ const VoiceMode = () => {
       <div className="p-6 pb-8">
         <div className="flex items-center justify-center gap-6">
           {/* Pause button */}
-          <Button
-            size="lg"
-            variant="ghost"
-            className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0"
-            onClick={handleAudioPause}
-            disabled={!currentAudio && !speechSynthesis?.speaking}
-          >
+          <Button size="lg" variant="ghost" className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0" onClick={handleAudioPause} disabled={!currentAudio && !speechSynthesis?.speaking}>
             <Pause className="h-5 w-5" />
           </Button>
 
           {/* Main microphone button */}
-          <Button
-            onClick={isListening ? stopListening : startListening}
-            size="lg"
-            disabled={isProcessing}
-            className={`rounded-full h-16 w-16 p-0 transition-all duration-300 ${
-              isListening
-                ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30'
-                : 'bg-white hover:bg-white/90 shadow-lg'
-            }`}
-          >
-            {isListening ? (
-              <MicOff className={`h-6 w-6 ${isListening ? 'text-white' : 'text-legal-primary'}`} />
-            ) : (
-              <Mic className="h-6 w-6 text-legal-primary" />
-            )}
+          <Button onClick={isListening ? stopListening : startListening} size="lg" disabled={isProcessing} className={`rounded-full h-16 w-16 p-0 transition-all duration-300 ${isListening ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : 'bg-white hover:bg-white/90 shadow-lg'}`}>
+            {isListening ? <MicOff className={`h-6 w-6 ${isListening ? 'text-white' : 'text-legal-primary'}`} /> : <Mic className="h-6 w-6 text-legal-primary" />}
           </Button>
 
           {/* Close button */}
-          <Button
-            onClick={handleClose}
-            size="lg"
-            variant="ghost"
-            className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0"
-          >
+          <Button onClick={handleClose} size="lg" variant="ghost" className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0">
             <X className="h-5 w-5" />
           </Button>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default VoiceMode;
