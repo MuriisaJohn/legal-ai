@@ -523,40 +523,37 @@ const VoiceMode = () => {
   // Calculate circle scale based on audio level
   const circleScale = 1 + audioLevel * 0.5;
   const glowIntensity = audioLevel * 100;
-  return <div className="min-h-screen bg-gradient-to-br from-legal-dark via-gray-900 to-legal-primary flex flex-col">
-      {/* Header */}
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-legal-dark via-gray-900 to-legal-primary flex flex-col">
+      {/* AudioVisualizer with integrated controls */}
+      <AudioVisualizer 
+        onStartListening={startListening}
+        onStopListening={stopListening}
+        isListening={isListening}
+        isProcessing={isProcessing}
+        onClose={handleClose}
+      />
       
-
-      {/* Main Voice Visualization */}
-      <div className="flex-1 relative">
-        {/* 3D Audio Visualizer */}
-        <div className="absolute inset-0">
-          <AudioVisualizer />
+      {/* Conversation Overlay - showing transcript and response */}
+      {(transcript || response) && (
+        <div className="absolute top-4 left-4 right-4 max-w-4xl mx-auto">
+          <div className="bg-black/50 backdrop-blur-md rounded-lg p-4 space-y-3">
+            {transcript && (
+              <div className="text-white/80">
+                <span className="text-xs uppercase tracking-wider text-white/40">You:</span>
+                <p className="mt-1">{transcript}</p>
+              </div>
+            )}
+            {response && (
+              <div className="text-white">
+                <span className="text-xs uppercase tracking-wider text-white/40">AI:</span>
+                <p className="mt-1">{response}</p>
+              </div>
+            )}
+          </div>
         </div>
-        
-        {/* Overlay UI Elements */}
-        
-      </div>
-
-      {/* Bottom Controls */}
-      <div className="p-6 pb-8">
-        <div className="flex items-center justify-center gap-6">
-          {/* Pause button */}
-          <Button size="lg" variant="ghost" className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0" onClick={handleAudioPause} disabled={!currentAudio && !speechSynthesis?.speaking}>
-            <Pause className="h-5 w-5" />
-          </Button>
-
-          {/* Main microphone button */}
-          <Button onClick={isListening ? stopListening : startListening} size="lg" disabled={isProcessing} className={`rounded-full h-16 w-16 p-0 transition-all duration-300 ${isListening ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : 'bg-white hover:bg-white/90 shadow-lg'}`}>
-            {isListening ? <MicOff className={`h-6 w-6 ${isListening ? 'text-white' : 'text-legal-primary'}`} /> : <Mic className="h-6 w-6 text-legal-primary" />}
-          </Button>
-
-          {/* Close button */}
-          <Button onClick={handleClose} size="lg" variant="ghost" className="text-white hover:bg-white/10 rounded-full h-12 w-12 p-0">
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-    </div>;
+      )}
+    </div>
+  );
 };
 export default VoiceMode;

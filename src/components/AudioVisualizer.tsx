@@ -1,22 +1,42 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { GUI } from 'dat.gui';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
+import { Keyboard, Mic, MicOff, X } from 'lucide-react';
+
 interface AudioVisualizerProps {
   audioUrl?: string;
+  onClose?: () => void;
+  onStartListening?: () => void;
+  onStopListening?: () => void;
+  isListening?: boolean;
+  isProcessing?: boolean;
+  isSpeaking?: boolean;
+  currentAudio?: HTMLAudioElement | null;
 }
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
-  audioUrl
+  audioUrl,
+  onClose,
+  onStartListening,
+  onStopListening,
+  isListening = false,
+  isProcessing = false,
+  isSpeaking = false,
+  currentAudio = null
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState(false);
-  const guiRef = useRef<GUI | null>(null);
+  const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const animationIdRef = useRef<number | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   useEffect(() => {
     if (!mountRef.current) return;
 
@@ -39,7 +59,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       green: 1.0,
       blue: 1.0,
       threshold: 0.5,
-      strength: 0.5,
+      strength: 0.7,
       radius: 0.8
     };
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -53,7 +73,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     bloomComposer.addPass(bloomPass);
     const outputPass = new OutputPass();
     bloomComposer.addPass(outputPass);
-    camera.position.set(0, -2, 14);
+    // Adjusted camera position to move visualizer up
+    camera.position.set(0, 0, 14);
     camera.lookAt(0, 0, 0);
     const uniforms = {
       u_time: {
@@ -201,6 +222,8 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     camera.add(listener);
     let analyser: THREE.AudioAnalyser | null = null;
     let sound: THREE.Audio | null = null;
+    let nativeAnalyser: AnalyserNode | null = null;
+    let dataArray: Uint8Array | null = null;
 
     // If audioUrl is provided, load the audio file
     if (audioUrl) {
@@ -213,19 +236,82 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         }
       });
       analyser = new THREE.AudioAnalyser(sound, 32);
-    } else {
-      // Use microphone input
+    }
+    
+    // Initialize microphone when listening starts (separate from audio file loading)
+    if (!audioUrl && isListening && !mediaStreamRef.current) {
+      // Use microphone input with native Web Audio API only when listening
       navigator.mediaDevices.getUserMedia({
         audio: true,
         video: false
       }).then(function (stream) {
+        mediaStreamRef.current = stream;
         const audioContext = listener.context;
         const source = audioContext.createMediaStreamSource(stream);
-        analyser = new THREE.AudioAnalyser(source as any, 32);
+        
+        // Create native analyser
+        nativeAnalyser = audioContext.createAnalyser();
+        nativeAnalyser.fftSize = 64;
+        nativeAnalyser.smoothingTimeConstant = 0.8;
+        
+        // Connect source to analyser
+        source.connect(nativeAnalyser);
+        
+        // Create data array for frequency data
+        dataArray = new Uint8Array(nativeAnalyser.frequencyBinCount);
+        
         setAudioLoaded(true);
       }).catch(function (err) {
         console.error('Error accessing microphone:', err);
       });
+    } else if (!audioUrl && !isListening && mediaStreamRef.current) {
+      // Stop the media stream when not listening
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+      nativeAnalyser = null;
+      dataArray = null;
+    }
+    
+    // Connect to audio element when speaking (AI response playback)
+    if (!audioUrl && isSpeaking && currentAudio && !audioSourceRef.current) {
+      try {
+        // Create or reuse audio context
+        if (!audioContextRef.current) {
+          audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        
+        // Create analyser for playback audio
+        if (!audioAnalyserRef.current) {
+          audioAnalyserRef.current = audioContextRef.current.createAnalyser();
+          audioAnalyserRef.current.fftSize = 64;
+          audioAnalyserRef.current.smoothingTimeConstant = 0.8;
+        }
+        
+        // Create source from audio element
+        audioSourceRef.current = audioContextRef.current.createMediaElementSource(currentAudio);
+        audioSourceRef.current.connect(audioAnalyserRef.current);
+        audioAnalyserRef.current.connect(audioContextRef.current.destination);
+        
+        // Use the same analyser variables for consistency
+        nativeAnalyser = audioAnalyserRef.current;
+        dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
+        
+        console.log('Connected audio playback to visualizer');
+      } catch (err) {
+        console.error('Error connecting audio playback to visualizer:', err);
+      }
+    } else if (!isSpeaking && audioSourceRef.current) {
+      // Disconnect audio source when not speaking
+      try {
+        audioSourceRef.current.disconnect();
+        audioSourceRef.current = null;
+        if (!isListening) {
+          nativeAnalyser = null;
+          dataArray = null;
+        }
+      } catch (err) {
+        console.error('Error disconnecting audio source:', err);
+      }
     }
 
     // Click handler for playing audio (if audio file is loaded)
@@ -238,38 +324,14 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     if (audioUrl) {
       window.addEventListener('click', handleClick);
     }
-    const gui = new GUI();
-    guiRef.current = gui;
-
-    // Position GUI for mobile
-    if (width < 768) {
-      gui.domElement.style.position = 'absolute';
-      gui.domElement.style.top = '60px';
-      gui.domElement.style.right = '0px';
-      gui.domElement.style.width = '200px';
-    }
-    const colorsFolder = gui.addFolder('Colors');
-    colorsFolder.add(params, 'red', 0, 1).onChange(function (value) {
-      uniforms.u_red.value = Number(value);
-    });
-    colorsFolder.add(params, 'green', 0, 1).onChange(function (value) {
-      uniforms.u_green.value = Number(value);
-    });
-    colorsFolder.add(params, 'blue', 0, 1).onChange(function (value) {
-      uniforms.u_blue.value = Number(value);
-    });
-    colorsFolder.open();
-    const bloomFolder = gui.addFolder('Bloom');
-    bloomFolder.add(params, 'threshold', 0, 1).onChange(function (value) {
-      bloomPass.threshold = Number(value);
-    });
-    bloomFolder.add(params, 'strength', 0, 3).onChange(function (value) {
-      bloomPass.strength = Number(value);
-    });
-    bloomFolder.add(params, 'radius', 0, 1).onChange(function (value) {
-      bloomPass.radius = Number(value);
-    });
-    bloomFolder.open();
+    // GUI controls removed - no longer needed
+    // Set default values directly
+    uniforms.u_red.value = params.red;
+    uniforms.u_green.value = params.green;
+    uniforms.u_blue.value = params.blue;
+    bloomPass.threshold = params.threshold;
+    bloomPass.strength = params.strength;
+    bloomPass.radius = params.radius;
     let mouseX = 0;
     let mouseY = 0;
     document.addEventListener('mousemove', function (e) {
@@ -284,7 +346,24 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       camera.position.y += (-mouseY - camera.position.y) * 0.5;
       camera.lookAt(scene.position);
       uniforms.u_time.value = clock.getElapsedTime();
-      uniforms.u_frequency.value = analyser ? analyser.getAverageFrequency() : 0;
+      
+      // Get frequency data
+      if (analyser) {
+        uniforms.u_frequency.value = analyser.getAverageFrequency();
+      } else if (nativeAnalyser && dataArray) {
+        // For microphone input or audio playback, use native analyser
+        nativeAnalyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        // Amplify the frequency value for better visualization
+        const avgFrequency = sum / dataArray.length;
+        uniforms.u_frequency.value = avgFrequency * (isSpeaking ? 1.5 : 1.0); // Boost when speaking
+      } else {
+        uniforms.u_frequency.value = 0;
+      }
+      
       bloomComposer.render();
       requestAnimationFrame(animate);
     }
@@ -308,24 +387,130 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       if (audioUrl) {
         window.removeEventListener('click', handleClick);
       }
-      if (guiRef.current) {
-        guiRef.current.destroy();
-      }
       if (rendererRef.current && mountRef.current) {
         mountRef.current.removeChild(rendererRef.current.domElement);
         rendererRef.current.dispose();
       }
+      // Stop media stream if it exists
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+      }
     };
-  }, []);
-  return <div className="relative w-full h-screen bg-black">
-            <div ref={mountRef} className="w-full h-full" />
+  }, [isListening, isSpeaking, currentAudio]);
+  const handleMicToggle = () => {
+    if (isListening) {
+      if (onStopListening) {
+        onStopListening();
+      }
+      // Stop media stream
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+      }
+    } else {
+      if (onStartListening) {
+        onStartListening();
+      }
+    }
+  };
+
+  const handleKeyboardToggle = () => {
+    setIsKeyboardMode(!isKeyboardMode);
+    // Here you can add logic to enable/disable keyboard input mode
+  };
+
+  const handleClose = () => {
+    // Stop any active media streams
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  return <div className="relative w-full h-screen bg-black overflow-hidden">
+            {/* Visualizer container - adjusted position */}
+            <div ref={mountRef} className="w-full h-full transform -translate-y-12" />
+            
             {audioUrl && !audioLoaded && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg">
                     Loading audio...
                 </div>}
             {audioUrl && audioLoaded && !isPlaying && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg cursor-pointer bg-black/50 px-6 py-3 rounded-lg border border-white/20 hover:bg-black/70 transition-colors">
                     Click anywhere to play audio
                 </div>}
-            {!audioUrl}
+            
+            {/* Audio Controls Bar */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-6">
+              <div className="flex items-center justify-center gap-6">
+                {/* Keyboard Button */}
+                <button
+                  onClick={handleKeyboardToggle}
+                  className={`rounded-full h-12 w-12 flex items-center justify-center transition-all duration-300 ${
+                    isKeyboardMode 
+                      ? 'bg-white text-black shadow-lg shadow-white/20' 
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  } backdrop-blur-sm`}
+                  title="Toggle Keyboard Input"
+                >
+                  <Keyboard className="w-5 h-5" />
+                </button>
+
+                {/* Main Microphone Button - Larger and centered */}
+                <button
+                  onClick={handleMicToggle}
+                  disabled={isProcessing}
+                  className={`rounded-full h-16 w-16 flex items-center justify-center transition-all duration-300 ${
+                    isListening 
+                      ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/30 animate-pulse' 
+                      : 'bg-white hover:bg-white/90 text-legal-primary shadow-lg'
+                  } backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+                  title={isListening ? "Stop Listening" : "Start Listening"}
+                >
+                  {isListening ? (
+                    <MicOff className="w-6 h-6" />
+                  ) : (
+                    <Mic className="w-6 h-6" />
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  onClick={handleClose}
+                  className="rounded-full h-12 w-12 flex items-center justify-center bg-white/10 text-white hover:bg-red-500/20 hover:text-red-400 transition-all duration-300 backdrop-blur-sm"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Indicators */}
+              <div className="flex justify-center mt-4 gap-4 text-white/60 text-sm">
+                {isProcessing && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></span>
+                    Processing...
+                  </span>
+                )}
+                {isKeyboardMode && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    Keyboard input active
+                  </span>
+                )}
+                {isListening && !isProcessing && (
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                    Listening...
+                  </span>
+                )}
+              </div>
+            </div>
         </div>;
 };
 export default AudioVisualizer;
