@@ -5,73 +5,79 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass';
-
 interface AudioVisualizerProps {
-    audioUrl?: string;
+  audioUrl?: string;
 }
+const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
+  audioUrl
+}) => {
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioLoaded, setAudioLoaded] = useState(false);
+  const guiRef = useRef<GUI | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const animationIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!mountRef.current) return;
 
-const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl }) => {
-    const mountRef = useRef<HTMLDivElement | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [audioLoaded, setAudioLoaded] = useState(false);
-    const guiRef = useRef<GUI | null>(null);
-    const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-    const animationIdRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        if (!mountRef.current) return;
-
-        // Get container dimensions
-        const container = mountRef.current;
-        const width = container.clientWidth;
-        const height = container.clientHeight;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(width, height);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        rendererRef.current = renderer;
-        container.appendChild(renderer.domElement);
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-
-        const params = {
-            red: 1.0,
-            green: 1.0,
-            blue: 1.0,
-            threshold: 0.5,
-            strength: 0.5,
-            radius: 0.8
-        };
-
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-        const renderScene = new RenderPass(scene, camera);
-
-        const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height));
-        bloomPass.threshold = params.threshold;
-        bloomPass.strength = params.strength;
-        bloomPass.radius = params.radius;
-
-        const bloomComposer = new EffectComposer(renderer);
-        bloomComposer.addPass(renderScene);
-        bloomComposer.addPass(bloomPass);
-
-        const outputPass = new OutputPass();
-        bloomComposer.addPass(outputPass);
-
-        camera.position.set(0, -2, 14);
-        camera.lookAt(0, 0, 0);
-
-        const uniforms = {
-            u_time: { type: 'f', value: 0.0 },
-            u_frequency: { type: 'f', value: 0.0 },
-            u_red: { type: 'f', value: 1.0 },
-            u_green: { type: 'f', value: 1.0 },
-            u_blue: { type: 'f', value: 1.0 }
-        };
-
-        const vertexShader = `
+    // Get container dimensions
+    const container = mountRef.current;
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    rendererRef.current = renderer;
+    container.appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    const params = {
+      red: 1.0,
+      green: 1.0,
+      blue: 1.0,
+      threshold: 0.5,
+      strength: 0.5,
+      radius: 0.8
+    };
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const renderScene = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height));
+    bloomPass.threshold = params.threshold;
+    bloomPass.strength = params.strength;
+    bloomPass.radius = params.radius;
+    const bloomComposer = new EffectComposer(renderer);
+    bloomComposer.addPass(renderScene);
+    bloomComposer.addPass(bloomPass);
+    const outputPass = new OutputPass();
+    bloomComposer.addPass(outputPass);
+    camera.position.set(0, -2, 14);
+    camera.lookAt(0, 0, 0);
+    const uniforms = {
+      u_time: {
+        type: 'f',
+        value: 0.0
+      },
+      u_frequency: {
+        type: 'f',
+        value: 0.0
+      },
+      u_red: {
+        type: 'f',
+        value: 1.0
+      },
+      u_green: {
+        type: 'f',
+        value: 1.0
+      },
+      u_blue: {
+        type: 'f',
+        value: 1.0
+      }
+    };
+    const vertexShader = `
         uniform float u_time;
 
         vec3 mod289(vec3 x) {
@@ -171,8 +177,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl }) => {
             gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
         }
         `;
-
-        const fragmentShader = `
+    const fragmentShader = `
         uniform float u_red;
         uniform float u_blue;
         uniform float u_green;
@@ -180,173 +185,147 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ audioUrl }) => {
             gl_FragColor = vec4(vec3(u_red, u_green, u_blue), 1. );
         }
         `;
+    const mat = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader,
+      fragmentShader
+    });
 
-        const mat = new THREE.ShaderMaterial({
-            uniforms,
-            vertexShader,
-            fragmentShader
-        });
+    // Responsive geometry size
+    const baseSize = Math.min(width, height) < 768 ? 2.5 : 4;
+    const geo = new THREE.IcosahedronGeometry(baseSize, 30);
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+    mesh.material.wireframe = true;
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+    let analyser: THREE.AudioAnalyser | null = null;
+    let sound: THREE.Audio | null = null;
 
-        // Responsive geometry size
-        const baseSize = Math.min(width, height) < 768 ? 2.5 : 4;
-        const geo = new THREE.IcosahedronGeometry(baseSize, 30);
-        const mesh = new THREE.Mesh(geo, mat);
-        scene.add(mesh);
-        mesh.material.wireframe = true;
-
-        const listener = new THREE.AudioListener();
-        camera.add(listener);
-        
-        let analyser: THREE.AudioAnalyser | null = null;
-        let sound: THREE.Audio | null = null;
-
-        // If audioUrl is provided, load the audio file
-        if (audioUrl) {
-            sound = new THREE.Audio(listener);
-            const audioLoader = new THREE.AudioLoader();
-            audioLoader.load(audioUrl, function(buffer) {
-                if (sound) {
-                    sound.setBuffer(buffer);
-                    setAudioLoaded(true);
-                }
-            });
-            analyser = new THREE.AudioAnalyser(sound, 32);
-        } else {
-            // Use microphone input
-            navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-                .then(function(stream) {
-                    const audioContext = listener.context;
-                    const source = audioContext.createMediaStreamSource(stream);
-                    analyser = new THREE.AudioAnalyser(source as any, 32);
-                    setAudioLoaded(true);
-                })
-                .catch(function(err) {
-                    console.error('Error accessing microphone:', err);
-                });
+    // If audioUrl is provided, load the audio file
+    if (audioUrl) {
+      sound = new THREE.Audio(listener);
+      const audioLoader = new THREE.AudioLoader();
+      audioLoader.load(audioUrl, function (buffer) {
+        if (sound) {
+          sound.setBuffer(buffer);
+          setAudioLoaded(true);
         }
+      });
+      analyser = new THREE.AudioAnalyser(sound, 32);
+    } else {
+      // Use microphone input
+      navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: false
+      }).then(function (stream) {
+        const audioContext = listener.context;
+        const source = audioContext.createMediaStreamSource(stream);
+        analyser = new THREE.AudioAnalyser(source as any, 32);
+        setAudioLoaded(true);
+      }).catch(function (err) {
+        console.error('Error accessing microphone:', err);
+      });
+    }
 
-        // Click handler for playing audio (if audio file is loaded)
-        const handleClick = () => {
-            if (sound && audioLoaded && !isPlaying) {
-                sound.play();
-                setIsPlaying(true);
-            }
-        };
+    // Click handler for playing audio (if audio file is loaded)
+    const handleClick = () => {
+      if (sound && audioLoaded && !isPlaying) {
+        sound.play();
+        setIsPlaying(true);
+      }
+    };
+    if (audioUrl) {
+      window.addEventListener('click', handleClick);
+    }
+    const gui = new GUI();
+    guiRef.current = gui;
 
-        if (audioUrl) {
-            window.addEventListener('click', handleClick);
-        }
-
-        const gui = new GUI();
-        guiRef.current = gui;
-        
-        // Position GUI for mobile
-        if (width < 768) {
-            gui.domElement.style.position = 'absolute';
-            gui.domElement.style.top = '60px';
-            gui.domElement.style.right = '0px';
-            gui.domElement.style.width = '200px';
-        }
-
-        const colorsFolder = gui.addFolder('Colors');
-        colorsFolder.add(params, 'red', 0, 1).onChange(function(value) {
-            uniforms.u_red.value = Number(value);
-        });
-        colorsFolder.add(params, 'green', 0, 1).onChange(function(value) {
-            uniforms.u_green.value = Number(value);
-        });
-        colorsFolder.add(params, 'blue', 0, 1).onChange(function(value) {
-            uniforms.u_blue.value = Number(value);
-        });
-        colorsFolder.open();
-
-        const bloomFolder = gui.addFolder('Bloom');
-        bloomFolder.add(params, 'threshold', 0, 1).onChange(function(value) {
-            bloomPass.threshold = Number(value);
-        });
-        bloomFolder.add(params, 'strength', 0, 3).onChange(function(value) {
-            bloomPass.strength = Number(value);
-        });
-        bloomFolder.add(params, 'radius', 0, 1).onChange(function(value) {
-            bloomPass.radius = Number(value);
-        });
-        bloomFolder.open();
-
-        let mouseX = 0;
-        let mouseY = 0;
-        document.addEventListener('mousemove', function(e) {
-            let windowHalfX = window.innerWidth / 2;
-            let windowHalfY = window.innerHeight / 2;
-            mouseX = (e.clientX - windowHalfX) / 100;
-            mouseY = (e.clientY - windowHalfY) / 100;
-        });
-
-        const clock = new THREE.Clock();
-        function animate() {
-            camera.position.x += (mouseX - camera.position.x) * .05;
-            camera.position.y += (-mouseY - camera.position.y) * 0.5;
-            camera.lookAt(scene.position);
-            uniforms.u_time.value = clock.getElapsedTime();
-            uniforms.u_frequency.value = analyser ? analyser.getAverageFrequency() : 0;
-            bloomComposer.render();
-            requestAnimationFrame(animate);
-        }
-        animate();
-
-        const handleResize = () => {
-            if (!container || !container.parentElement) return;
-            
-            const newWidth = container.clientWidth;
-            const newHeight = container.clientHeight;
-            
-            camera.aspect = newWidth / newHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(newWidth, newHeight);
-            bloomComposer.setSize(newWidth, newHeight);
-        };
-        
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-            // Clean up
-            if (animationIdRef.current) {
-                cancelAnimationFrame(animationIdRef.current);
-            }
-            window.removeEventListener('resize', handleResize);
-            if (audioUrl) {
-                window.removeEventListener('click', handleClick);
-            }
-            if (guiRef.current) {
-                guiRef.current.destroy();
-            }
-            if (rendererRef.current && mountRef.current) {
-                mountRef.current.removeChild(rendererRef.current.domElement);
-                rendererRef.current.dispose();
-            }
-        };
-    }, []);
-
-    return (
-        <div className="relative w-full h-screen bg-black">
+    // Position GUI for mobile
+    if (width < 768) {
+      gui.domElement.style.position = 'absolute';
+      gui.domElement.style.top = '60px';
+      gui.domElement.style.right = '0px';
+      gui.domElement.style.width = '200px';
+    }
+    const colorsFolder = gui.addFolder('Colors');
+    colorsFolder.add(params, 'red', 0, 1).onChange(function (value) {
+      uniforms.u_red.value = Number(value);
+    });
+    colorsFolder.add(params, 'green', 0, 1).onChange(function (value) {
+      uniforms.u_green.value = Number(value);
+    });
+    colorsFolder.add(params, 'blue', 0, 1).onChange(function (value) {
+      uniforms.u_blue.value = Number(value);
+    });
+    colorsFolder.open();
+    const bloomFolder = gui.addFolder('Bloom');
+    bloomFolder.add(params, 'threshold', 0, 1).onChange(function (value) {
+      bloomPass.threshold = Number(value);
+    });
+    bloomFolder.add(params, 'strength', 0, 3).onChange(function (value) {
+      bloomPass.strength = Number(value);
+    });
+    bloomFolder.add(params, 'radius', 0, 1).onChange(function (value) {
+      bloomPass.radius = Number(value);
+    });
+    bloomFolder.open();
+    let mouseX = 0;
+    let mouseY = 0;
+    document.addEventListener('mousemove', function (e) {
+      let windowHalfX = window.innerWidth / 2;
+      let windowHalfY = window.innerHeight / 2;
+      mouseX = (e.clientX - windowHalfX) / 100;
+      mouseY = (e.clientY - windowHalfY) / 100;
+    });
+    const clock = new THREE.Clock();
+    function animate() {
+      camera.position.x += (mouseX - camera.position.x) * .05;
+      camera.position.y += (-mouseY - camera.position.y) * 0.5;
+      camera.lookAt(scene.position);
+      uniforms.u_time.value = clock.getElapsedTime();
+      uniforms.u_frequency.value = analyser ? analyser.getAverageFrequency() : 0;
+      bloomComposer.render();
+      requestAnimationFrame(animate);
+    }
+    animate();
+    const handleResize = () => {
+      if (!container || !container.parentElement) return;
+      const newWidth = container.clientWidth;
+      const newHeight = container.clientHeight;
+      camera.aspect = newWidth / newHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(newWidth, newHeight);
+      bloomComposer.setSize(newWidth, newHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      // Clean up
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
+      }
+      window.removeEventListener('resize', handleResize);
+      if (audioUrl) {
+        window.removeEventListener('click', handleClick);
+      }
+      if (guiRef.current) {
+        guiRef.current.destroy();
+      }
+      if (rendererRef.current && mountRef.current) {
+        mountRef.current.removeChild(rendererRef.current.domElement);
+        rendererRef.current.dispose();
+      }
+    };
+  }, []);
+  return <div className="relative w-full h-screen bg-black">
             <div ref={mountRef} className="w-full h-full" />
-            {audioUrl && !audioLoaded && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg">
+            {audioUrl && !audioLoaded && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg">
                     Loading audio...
-                </div>
-            )}
-            {audioUrl && audioLoaded && !isPlaying && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg cursor-pointer bg-black/50 px-6 py-3 rounded-lg border border-white/20 hover:bg-black/70 transition-colors">
+                </div>}
+            {audioUrl && audioLoaded && !isPlaying && <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-lg cursor-pointer bg-black/50 px-6 py-3 rounded-lg border border-white/20 hover:bg-black/70 transition-colors">
                     Click anywhere to play audio
-                </div>
-            )}
-            {!audioUrl && (
-                <div className="absolute top-4 left-4 text-white text-sm bg-black/50 px-3 py-2 rounded">
-                    Using microphone input
-                </div>
-            )}
-        </div>
-    );
+                </div>}
+            {!audioUrl}
+        </div>;
 };
-
 export default AudioVisualizer;
-
