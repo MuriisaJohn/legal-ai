@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateResponseWithOpenRouter, answerQuestion, summarizeDocument, analyzeDocumentContent } from '@/frontend/services/openRouterService';
+import { useMessageStore, useInitialGreeting } from '@/stores/messageStore';
 
 type Document = {
   id: string;
@@ -324,36 +325,24 @@ export { formatMessageContent, formatMessageContentOptimized };
 export type { FormatOptions };
 
 const Chat = () => {
-  const [activeDocument, setActiveDocument] = useState<Document | undefined>(undefined);
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Use shared message store
+  const {
+    messages,
+    activeDocument,
+    isProcessing,
+    addMessage,
+    setActiveDocument,
+    setProcessing,
+    getConversationContext
+  } = useMessageStore();
+  
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
 
-  // Initial greeting message
-  useEffect(() => {
-    if (messages.length === 0 && activeDocument) {
-      const hasContent = activeDocument.content ? " I can analyze its content and " : " ";
-      setMessages([
-        {
-          id: 'welcome',
-          content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
-    } else if (messages.length === 0) {
-      setMessages([
-        {
-          id: 'welcome',
-          content: "Welcome! I'm your Ugandan legal assistant. I can help with questions about land law, business regulations, criminal law, family law, and constitutional rights. How may I assist you today?",
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
-    }
-  }, [activeDocument]);
+  // Use initial greeting hook
+  useInitialGreeting();
 
 
   const handleSendMessage = async () => {
@@ -368,53 +357,47 @@ const Chat = () => {
       return;
     }
 
-    const userMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+    // Add user message to store
+    addMessage({
       content: inputValue,
       sender: 'user',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
+      source: 'chat'
+    });
+    
+    const userInput = inputValue;
     setInputValue('');
 
     // Greeting check
-    if (isGreeting(inputValue)) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `msg-${Date.now()}-ai`,
-          content: "Hello! How can I assist you with your legal questions today?",
-          sender: 'ai',
-          timestamp: new Date()
-        }
-      ]);
+    if (isGreeting(userInput)) {
+      addMessage({
+        content: "Hello! How can I assist you with your legal questions today?",
+        sender: 'ai',
+        source: 'chat'
+      });
       return;
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
-    // Prepare conversational context (last 10 messages)
-    const lastMessages = [...messages, userMessage].slice(-10);
-    const context = lastMessages.map(m => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`).join('\n');
+    // Get conversational context from store
+    const context = getConversationContext(10);
 
     try {
       const responseText = await answerQuestion(
-        inputValue,
+        userInput,
         context,
         activeDocument?.name || null,
         activeDocument?.content || null,
         apiKey
       );
 
-      const aiMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      // Add AI response to store
+      addMessage({
         content: responseText,
         sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
+        source: 'chat'
+      });
     } catch (error) {
       console.error("OpenRouter API Error:", error);
       
@@ -425,15 +408,12 @@ const Chat = () => {
         errorContent += "Please check the console for more details.";
       }
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: errorContent,
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "API Error",
@@ -442,6 +422,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -465,15 +446,13 @@ const Chat = () => {
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
-    const summaryRequestMessage: Message = {
-      id: `msg-${Date.now()}-user`,
+    addMessage({
       content: `Summarize "${activeDocument.name}"`,
       sender: 'user',
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, summaryRequestMessage]);
+      source: 'chat'
+    });
 
     try {
       const summary = await summarizeDocument(
@@ -482,26 +461,20 @@ const Chat = () => {
         apiKey
       );
 
-      const summaryMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: `Document Summary for "${activeDocument.name}": ${summary}`,
         sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, summaryMessage]);
+        source: 'chat'
+      });
     } catch (error) {
       console.error("Error summarizing document:", error);
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: error instanceof Error ? error.message : "Failed to summarize the document. Please try again.",
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "Error",
@@ -510,6 +483,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 
@@ -524,6 +498,7 @@ const Chat = () => {
     }
 
     setIsLoading(true);
+    setProcessing(true);
 
     try {
       const analysis = await analyzeDocumentContent(
@@ -532,26 +507,20 @@ const Chat = () => {
         apiKey
       );
 
-      const analysisMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n${analysis}`,
         sender: 'ai',
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, analysisMessage]);
+        source: 'chat'
+      });
     } catch (error) {
       console.error("Error analyzing document:", error);
 
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-ai`,
+      addMessage({
         content: error instanceof Error ? error.message : "Failed to analyze the document. Please try again.",
         sender: 'ai',
-        timestamp: new Date(),
+        source: 'chat',
         isError: true
-      };
-
-      setMessages(prev => [...prev, errorMessage]);
+      });
 
       toast({
         title: "Error",
@@ -560,6 +529,7 @@ const Chat = () => {
       });
     } finally {
       setIsLoading(false);
+      setProcessing(false);
     }
   };
 

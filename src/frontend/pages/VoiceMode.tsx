@@ -1,21 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, X, Volume2, Pause, Bot, User } from 'lucide-react';
+import { Mic, MicOff, X, Volume2, Pause, Bot, User, AlertCircle } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { generateStreamingResponseWithOpenRouter, OpenRouterMessage } from "@/frontend/services/openRouterService";
 import { streamAudioFromMoshi, streamTextToSpeech } from "@/services/kyutaiTTSService";
-import { formatMessageContent } from './Chat';
+import { formatMessageContent } from '@/pages/Chat';
 import AudioVisualizer from '@/components/AudioVisualizer';
+import { useMessageStore } from '@/stores/messageStore';
+import { ScrollArea } from "@/components/ui/scroll-area";
 const VoiceMode = () => {
   const navigate = useNavigate();
+  
+  // Use shared message store
+  const {
+    messages,
+    conversationHistory,
+    addMessage,
+    addConversationExchange,
+    getConversationContext,
+    setProcessing: setGlobalProcessing
+  } = useMessageStore();
+  
   const [isListening, setIsListening] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [response, setResponse] = useState('');
   const [animatedWords, setAnimatedWords] = useState<string[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
-  const [conversationHistory, setConversationHistory] = useState<OpenRouterMessage[]>([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
   const [isAudioPaused, setIsAudioPaused] = useState(false);
@@ -317,7 +329,15 @@ const VoiceMode = () => {
   };
   const processVoiceInput = async (text: string) => {
     setIsProcessing(true);
+    setGlobalProcessing(true);
     stopListening(); // Stop listening while processing
+
+    // Add user message to shared store immediately
+    addMessage({
+      content: text,
+      sender: 'user',
+      source: 'voice'
+    });
 
     // Clear previous response
     setResponse('');
@@ -335,7 +355,7 @@ const VoiceMode = () => {
         return;
       }
 
-      // Build messages with conversation history
+      // Build messages with conversation history from shared store
       const systemMessage: OpenRouterMessage = {
         role: 'system',
         content: `You are a knowledgeable Ugandan legal AI assistant having a natural conversation. Provide helpful, 
@@ -343,8 +363,14 @@ const VoiceMode = () => {
          and respond to their new query while maintaining context of the previous discussion when relevant.responses should be very short and concise, ideally under 30 words.`
       };
 
-      // Include conversation history for context
-      const messages: OpenRouterMessage[] = [systemMessage, ...conversationHistory, {
+      // Get conversation history from the shared store
+      const sharedHistory: OpenRouterMessage[] = conversationHistory.map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'assistant' as const,
+        content: msg.content
+      }));
+
+      // Include shared conversation history for context
+      const messages: OpenRouterMessage[] = [systemMessage, ...sharedHistory, {
         role: 'user',
         content: text
       }];
@@ -358,15 +384,14 @@ const VoiceMode = () => {
         animateResponseText(fullResponse);
       }, () => {
         setIsProcessing(false);
+        setGlobalProcessing(false);
 
-        // Update conversation history with the complete response
-        setConversationHistory(prev => [...prev, {
-          role: 'user',
-          content: text
-        }, {
-          role: 'assistant',
-          content: fullResponse
-        }]);
+        // Add AI response to shared store
+        addMessage({
+          content: fullResponse,
+          sender: 'ai',
+          source: 'voice'
+        });
 
         // Only stream audio once when complete
         if (!hasStartedAudio && fullResponse.trim()) {
@@ -470,8 +495,18 @@ const VoiceMode = () => {
       }, error => {
         console.error('Error in OpenRouter streaming:', error);
         setIsProcessing(false);
+        setGlobalProcessing(false);
         const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
         setResponse(errorMessage);
+        
+        // Add error message to shared store
+        addMessage({
+          content: errorMessage,
+          sender: 'ai',
+          source: 'voice',
+          isError: true
+        });
+        
         if (!hasStartedAudio) {
           hasStartedAudio = true;
           streamAudio(errorMessage);
@@ -485,8 +520,17 @@ const VoiceMode = () => {
     } catch (error) {
       console.error('Error processing voice input:', error);
       setIsProcessing(false);
+      setGlobalProcessing(false);
       const errorMessage = "I apologize, but I'm having trouble processing your request right now. Please try again.";
       setResponse(errorMessage);
+      
+      // Add error message to shared store
+      addMessage({
+        content: errorMessage,
+        sender: 'ai',
+        source: 'voice',
+        isError: true
+      });
 
       // Stream error message audio
       streamAudio(errorMessage);
@@ -535,7 +579,6 @@ const VoiceMode = () => {
         currentAudio={currentAudio}
         onClose={handleClose}
       />
-      
     </div>
   );
 };
