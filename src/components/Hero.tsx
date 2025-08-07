@@ -10,15 +10,15 @@ const Hero = () => {
       <div className="container mx-auto px-4 flex flex-col md:flex-row items-center">
         <div className="md:w-1/2 mb-10 md:mb-0">
           <h1 className="font-serif text-4xl md:text-5xl font-bold mb-4 leading-tight">
-            Navigate Ugandan Legal Landscape with Confidence
+            Navigate the Legal Landscape with Confidence
           </h1>
           <p className="text-lg mb-8 text-gray-200 max-w-lg">
-            Comprehensive AI-powered legal research and analysis tailored to Ugandan law, helping professionals and citizens understand their legal rights and obligations.
+            Comprehensive AI-powered legal research and analysis tailored to make your legal decsions easier, helping professionals and citizens understand their legal rights and obligations.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
             <Link to="/documents">
               <Button size="lg" className="bg-legal-secondary text-legal-dark hover:bg-legal-secondary/90 font-medium">
-                <FileUp className="mr-2 h-5 w-5" /> Upload Ugandan Documents
+                <FileUp className="mr-2 h-5 w-5" /> Upload Documents
               </Button>
             </Link>
             <Link to="/chat">
@@ -33,7 +33,7 @@ const Hero = () => {
             <div className="bg-gray-50 p-4 border-b border-gray-200">
               <div className="flex items-center">
                 <Scale className="h-5 w-5 text-legal-primary mr-2" />
-                <span className="font-medium text-legal-dark">Ugandan Legal Insights</span>
+                <span className="font-medium text-legal-dark">Legal Insights</span>
               </div>
             </div>
             <div className="p-4 text-legal-dark">

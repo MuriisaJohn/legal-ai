@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import DocumentList from '@/components/DocumentList';
 import FileUpload from '@/components/FileUpload';
 import ChatInterface from '@/components/ChatInterface';
@@ -127,7 +126,6 @@ const Documents = () => {
           </div>
         </div>
       </main>
-      <Footer />
     </div>
   );
 };

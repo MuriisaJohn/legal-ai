@@ -23,7 +23,7 @@ const About = () => {
           <div className="container mx-auto px-4">
             <h2 className="font-serif text-3xl font-bold text-legal-primary mb-4 text-center">Our Leadership</h2>
             <p className="text-legal-accent max-w-2xl mx-auto text-center mb-12">
-              Meet the visionary behind LegalAI, transforming legal technology in Uganda.
+              Meet the visionary behind LegalAI.
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -40,10 +40,10 @@ className="w-full aspect-square object-contain"
                   <h3 className="font-serif text-2xl font-semibold mb-2 text-legal-primary">Murisa John</h3>
                   <p className="text-legal-accent mb-2 font-medium">Founder & CEO</p>
                   <p className="text-gray-600 mb-4">
-                    A passionate legal technologist dedicated to democratizing legal information in Uganda. With over a decade of experience in law and technology, Murisa founded LegalAI to bridge the gap between complex legal systems and everyday citizens.
+                    A passionate legal technologist dedicated to democratizing legal information. With over a decade of experience in law and technology, Murisa founded LegalAI to bridge the gap between complex legal systems and everyday citizens.
                   </p>
                   <p className="text-gray-600">
-                    His vision is to leverage artificial intelligence to make legal information more accessible, understandable, and actionable for all Ugandans.
+                    His vision is to leverage artificial intelligence to make legal information more accessible, understandable, and actionable for all.
                   </p>
                 </div>
               </div>
