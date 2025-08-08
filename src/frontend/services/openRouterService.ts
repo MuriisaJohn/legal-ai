@@ -835,3 +835,43 @@ export const analyzeDocumentContentStreaming = async (
   
   await processLegalAIRequestStreaming(request, apiKey, onChunk, onComplete, onError);
 };
+
+/**
+ * Generate a concise chat title from conversation text and jurisdiction.
+ * Returns a 5-8 word title with key nouns/verbs, no quotes or trailing punctuation.
+ */
+export const generateChatTitleWithOpenRouter = async (
+  conversationText: string,
+  jurisdiction: string,
+  apiKey: string
+): Promise<string> => {
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('OpenRouter API key is missing.');
+  }
+
+  const system = `You generate concise, descriptive chat titles for legal assistant conversations.
+Rules:
+- 5 to 8 words
+- Title case (Capitalize Main Words)
+- No quotes, no trailing period
+- Reflect the legal topic and the jurisdiction`;
+
+  const user = `Jurisdiction: ${jurisdiction}
+Conversation:
+${conversationText.slice(0, 3000)}
+
+Output only the title.`;
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: system },
+    { role: 'user', content: user }
+  ];
+
+  const title = await generateResponseWithOpenRouter(messages, apiKey);
+  // Sanitize title
+  return (title || 'New Chat')
+    .replace(/["'`]/g, '')
+    .replace(/[\.\s]+$/g, '')
+    .trim()
+    .slice(0, 80);
+};

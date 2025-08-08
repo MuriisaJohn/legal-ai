@@ -457,17 +457,14 @@ const Chat = () => {
           }
           
           // Auto-save/update chat title after completion
-          try {
-            const title = generateChatTitleFromMessages([...messages, { id: 'tmp', content: jurisdictionPrefixedInput, sender: 'user', timestamp: new Date() } as any]);
-            // Save silently if none exists yet
-            if (!savedHistories || savedHistories.length === 0) {
+          // Generate and save title asynchronously without awaiting
+          useMessageStore
+            .getState()
+            .generateHistoryTitle()
+            .then((title) => {
               saveCurrentHistory(title);
-            } else {
-              // Update the most recent saved history title if it's the active one
-              // Minimal: re-save creating a new snapshot to keep it simple
-              saveCurrentHistory(title);
-            }
-          } catch {}
+            })
+            .catch(() => {});
 
           setIsLoading(false);
           setProcessing(false);

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { generateChatTitleWithOpenRouter } from '@/frontend/services/openRouterService';
+import { useSettingsStore } from './settingsStore';
 
 // Message type shared across the application
 export interface Message {
@@ -37,6 +39,7 @@ interface MessageStore {
   clearMessages: () => void;
   setActiveDocument: (document: Document | null) => void;
   setProcessing: (isProcessing: boolean) => void;
+  generateHistoryTitle: () => Promise<string>;
   saveCurrentHistory: (title?: string) => string; // returns saved id
   loadHistory: (id: string) => void;
   deleteHistory: (id: string) => void;
@@ -115,7 +118,7 @@ export const useMessageStore = create<MessageStore>()(
         const id = `hist-${Date.now()}`;
         const newHist = {
           id,
-          title: title || new Date().toLocaleString(),
+          title: title || 'New Chat',
           messages: [...messages],
           createdAt: new Date().toISOString(),
         };
@@ -194,6 +197,24 @@ export const useMessageStore = create<MessageStore>()(
             { role: 'assistant' as 'assistant', content: aiResponse },
           ].slice(-20),
         }));
+      },
+
+      // Generate a short, readable title from earliest user content
+      generateHistoryTitle: async () => {
+        const { messages } = get();
+        const convo = messages
+          .slice(0, 12)
+          .map((m) => `${m.sender === 'user' ? 'User' : 'AI'}: ${m.content}`)
+          .join('\n');
+        try {
+          const jurisdiction = (useSettingsStore.getState().jurisdiction?.name) || 'Uganda';
+          const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || '';
+          if (!apiKey) return 'New Chat';
+          const title = await generateChatTitleWithOpenRouter(convo, jurisdiction, apiKey);
+          return title || 'New Chat';
+        } catch {
+          return 'New Chat';
+        }
       },
     }),
     {
