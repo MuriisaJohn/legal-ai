@@ -69,12 +69,13 @@ export const useMessageStore = create<MessageStore>()(
           timestamp: new Date(),
         };
         
+        const role: 'user' | 'assistant' = messageData.sender === 'user' ? 'user' : 'assistant';
         set((state) => ({
           messages: [...state.messages, newMessage],
           conversationHistory: [
             ...state.conversationHistory,
             {
-              role: messageData.sender === 'user' ? 'user' : 'assistant',
+              role,
               content: messageData.content,
             },
           ].slice(-20), // Keep last 20 exchanges for context
@@ -136,7 +137,10 @@ export const useMessageStore = create<MessageStore>()(
             timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as any),
           })),
           conversationHistory: found.messages
-            .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.content }))
+            .map((m) => ({
+              role: m.sender === 'user' ? 'user' as 'user' : 'assistant' as 'assistant',
+              content: m.content
+            }))
             .slice(-20),
           currentHistoryId: id,
         });
@@ -186,8 +190,8 @@ export const useMessageStore = create<MessageStore>()(
           messages: [...state.messages, userMsg, aiMsg],
           conversationHistory: [
             ...state.conversationHistory,
-            { role: 'user', content: userMessage },
-            { role: 'assistant', content: aiResponse },
+            { role: 'user' as 'user', content: userMessage },
+            { role: 'assistant' as 'assistant', content: aiResponse },
           ].slice(-20),
         }));
       },
@@ -269,7 +273,7 @@ export const useInitialGreeting = () => {
     if (activeDocument) {
       const hasContent = activeDocument.content ? " I can analyze its content and " : " ";
       addMessage({
-        content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
+        content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or  law in general.`,
         sender: 'ai',
         source: 'chat',
       });

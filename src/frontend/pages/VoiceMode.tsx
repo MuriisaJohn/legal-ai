@@ -360,9 +360,7 @@ const VoiceMode = () => {
       // Build messages with conversation history from shared store
       const systemMessage: OpenRouterMessage = {
         role: 'system',
-        content: `You are a knowledgeable Ugandan legal AI assistant having a natural conversation. Provide helpful, 
-        accurate legal guidance based on Ugandan law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes when applicable. If the user interrupts or changes topic, acknowledge it naturally
-         and respond to their new query while maintaining context of the previous discussion when relevant.responses should be very short and concise, ideally under 30 words.`
+        content: `You are a knowledgeable ${jurisdiction.name} legal AI assistant having a natural conversation. Provide helpful, accurate legal guidance based on ${jurisdiction.name} law. Keep responses conversational and concise for voice interaction. Always cite relevant statutes from ${jurisdiction.name} when applicable. If the user interrupts or changes topic, acknowledge it naturally and respond to their new query while maintaining context of the previous discussion when relevant. Responses should be very short and concise, ideally under 30 words.`
       };
 
       // Get conversation history from the shared store

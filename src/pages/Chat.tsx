@@ -690,8 +690,8 @@ const Chat = () => {
                       onChange={(e) => setInputValue(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder={activeDocument
-                        ? `Ask about "${activeDocument.name}" or Ugandan law...`
-                        : "Ask a question about Ugandan law..."}
+                        ? `Ask about "${activeDocument.name}" `
+                        : "Ask a question about law..."}
                       className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white h-12"
                       disabled={isLoading}
                     />

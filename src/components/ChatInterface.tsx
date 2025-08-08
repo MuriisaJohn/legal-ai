@@ -74,7 +74,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or Ugandan law in general.`,
+          content: `I'm your legal assistant.${hasContent}I'm ready to answer questions about "${activeDocument.name}" or law in general.`,
           sender: 'ai',
           timestamp: new Date()
         }
@@ -83,7 +83,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
       setMessages([
         {
           id: 'welcome',
-          content: "Welcome! I'm your Ugandan legal assistant. I can help with questions about land law, business regulations, criminal law, family law, and constitutional rights. How may I assist you today?",
+          content: "Welcome! I'm your legal assistant. I can help with questions about land law, business regulations, criminal law, family law, and constitutional rights. How may I assist you today?",
           sender: 'ai',
           timestamp: new Date()
         }
@@ -520,8 +520,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ activeDocument }) => {
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={activeDocument
-                    ? `Ask about "${activeDocument.name}" or Ugandan law...`
-                    : "Ask a question about Ugandan law..."}
+                    ? `Ask about "${activeDocument.name}" or review the document...`
+                    : "Ask a question about the contract..."}
                   className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-12 py-3 shadow-sm bg-white"
                   disabled={isLoading}
                 />
