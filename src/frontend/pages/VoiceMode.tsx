@@ -9,6 +9,7 @@ import { formatMessageContent } from '@/pages/Chat';
 import AudioVisualizer from '@/components/AudioVisualizer';
 import { useMessageStore } from '@/stores/messageStore';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useSettingsStore } from '@/stores/settingsStore';
 const VoiceMode = () => {
   const navigate = useNavigate();
   
@@ -37,6 +38,7 @@ const VoiceMode = () => {
   const isInterruptedRef = useRef(false);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>();
+  const { jurisdiction } = useSettingsStore();
 
   // Voice visualization effect
   const startAudioAnalysis = async () => {
@@ -372,10 +374,12 @@ const VoiceMode = () => {
       // Include shared conversation history for context
       const messages: OpenRouterMessage[] = [systemMessage, ...sharedHistory, {
         role: 'user',
-        content: text
+        content: `Jurisdiction: ${jurisdiction.name}. ${text}`
       }];
       let fullResponse = '';
       let hasStartedAudio = false;
+      // Prevent duplicate completion handling (e.g., from both finish_reason and stream end)
+      let hasCompleted = false;
 
       // Get response from OpenRouter
       await generateStreamingResponseWithOpenRouter(messages, apiKey, chunk => {
@@ -383,15 +387,19 @@ const VoiceMode = () => {
         setResponse(fullResponse);
         animateResponseText(fullResponse);
       }, () => {
+        if (hasCompleted) return;
+        hasCompleted = true;
         setIsProcessing(false);
         setGlobalProcessing(false);
 
         // Add AI response to shared store
-        addMessage({
-          content: fullResponse,
-          sender: 'ai',
-          source: 'voice'
-        });
+        if (fullResponse.trim()) {
+          addMessage({
+            content: fullResponse,
+            sender: 'ai',
+            source: 'voice'
+          });
+        }
 
         // Only stream audio once when complete
         if (!hasStartedAudio && fullResponse.trim()) {
@@ -493,6 +501,8 @@ const VoiceMode = () => {
           });
         }
       }, error => {
+        if (hasCompleted) return;
+        hasCompleted = true;
         console.error('Error in OpenRouter streaming:', error);
         setIsProcessing(false);
         setGlobalProcessing(false);

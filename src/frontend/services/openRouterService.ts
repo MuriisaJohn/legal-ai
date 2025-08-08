@@ -1,3 +1,9 @@
+/**
+ * Enhanced OpenRouter Service with Unified Legal AI Framework
+ * Provides structured, intent-based legal AI services for Ugandan law
+ */
+
+// Import existing types and utilities
 export interface OpenRouterMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -19,6 +25,42 @@ export interface OpenRouterStreamChunk {
     finish_reason?: string | null;
   }>;
 }
+
+// Import the comprehensive legal AI framework components
+import { 
+  ContractReviewResponse, 
+  DocumentSummaryResponse, 
+  ClassificationResponse,
+  QAResponse,
+  TranslationResponse,
+  SearchResponse,
+  LegalAIRequest,
+  LegalAIResponse,
+  LegalIntent
+} from './legalAITypes';
+
+import {
+  buildContractReviewPrompt,
+  buildSummarizePrompt,
+  buildQAPrompt,
+  buildTranslatePrompt,
+  buildSearchPrompt,
+  buildClassifyPrompt
+} from './prompts';
+
+import {
+  detectIntent,
+  extractEntities,
+  verifyCitations,
+  validateJSONResponse,
+  retryWithBackoff,
+  truncateContext,
+  LegalAILogger,
+  formatLegalResponse
+} from './legalAIUtils';
+
+// Initialize logger
+const logger = LegalAILogger.getInstance();
 
 // API key validation utility
 export const validateOpenRouterApiKey = async (apiKey: string): Promise<{ valid: boolean; error?: string }> => {
@@ -53,7 +95,7 @@ export const validateOpenRouterApiKey = async (apiKey: string): Promise<{ valid:
   }
 };
 
-// Utility for sending a chat completion request
+// Base utility for sending a chat completion request
 export const generateResponseWithOpenRouter = async (
   messages: OpenRouterMessage[],
   apiKey: string
@@ -76,10 +118,10 @@ export const generateResponseWithOpenRouter = async (
       'X-Title': 'Legal AI Assistant'
     },
     body: JSON.stringify({
-      model: 'tngtech/deepseek-r1t2-chimera:free',
+      model: 'deepseek/deepseek-r1-0528:free',
       messages,
       temperature: 0.3,
-      max_tokens: 1500,
+      max_tokens: 2000,
       top_p: 0.9
     })
   });
@@ -134,7 +176,7 @@ export const generateStreamingResponseWithOpenRouter = async (
         model: 'deepseek/deepseek-r1-0528:free',
         messages,
         temperature: 0.3,
-        max_tokens: 1500,
+        max_tokens: 2000,
         top_p: 0.9,
         stream: true // Enable streaming
       })
@@ -162,13 +204,21 @@ export const generateStreamingResponseWithOpenRouter = async (
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    // Ensure completion is only signaled once even if underlying stream
+    // reports a finish event and then a final done=true read.
+    let completionSignaled = false;
+    const signalCompleteOnce = () => {
+      if (completionSignaled) return;
+      completionSignaled = true;
+      onComplete?.();
+    };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
-          onComplete?.();
+          signalCompleteOnce();
           break;
         }
 
@@ -195,7 +245,7 @@ export const generateStreamingResponseWithOpenRouter = async (
 
               // Check if streaming is complete
               if (parsed.choices[0]?.finish_reason) {
-                onComplete?.();
+                signalCompleteOnce();
                 break;
               }
             } catch (parseError) {
@@ -214,46 +264,434 @@ export const generateStreamingResponseWithOpenRouter = async (
   }
 };
 
-// Enhanced system prompt for document analysis
-const analysisSystemPrompt = `You are an expert legal AI assistant specializing in Ugandan law. For each request, you must:
-1. Cite the exact Ugandan statutes, acts, or regulations by name, year, and section number.
-2. Use the most recent consolidated versions and amendments available as of today's date (June 23, 2025).
-3. Reference government publications or gazette notifications where relevant.
-4. Provide footnote-style citations for each legal principle, using a consistent style (e.g., [Civil Aviation Act, 2019, s. 10]).
-5. Highlight critical implications, compliance requirements, and practical recommendations based on current Ugandan legal practice.`;
+/**
+ * Main unified legal AI service handler
+ * Routes requests based on intent and applies appropriate processing
+ */
+export const processLegalAIRequest = async (
+  request: LegalAIRequest,
+  apiKey: string
+): Promise<LegalAIResponse> => {
+  const startTime = Date.now();
+  logger.log('info', `Processing ${request.intent} request`, { 
+    intent: request.intent,
+    hasContext: !!request.context,
+    streaming: request.options?.streaming 
+  });
 
-// Analyze a legal document
+  try {
+    // Pre-process: Extract entities for context
+    const entities = extractEntities(request.content);
+    logger.log('debug', 'Extracted entities', entities);
+
+    // Route based on intent
+    let response: any;
+    
+    switch (request.intent) {
+      case 'contract_review':
+        response = await handleContractReview(request, entities, apiKey);
+        break;
+      case 'summarize':
+        response = await handleSummarize(request, entities, apiKey);
+        break;
+      case 'qa':
+        response = await handleQA(request, entities, apiKey);
+        break;
+      case 'translate':
+        response = await handleTranslate(request, apiKey);
+        break;
+      case 'search':
+        response = await handleSearch(request, apiKey);
+        break;
+      case 'classify':
+        response = await handleClassify(request, entities, apiKey);
+        break;
+      default:
+        throw new Error(`Unknown intent: ${request.intent}`);
+    }
+
+    // Post-process: Verify citations
+    if (typeof response === 'string') {
+      const { verified, issues } = verifyCitations(response);
+      if (issues.length > 0) {
+        logger.log('warn', 'Citation issues found', issues);
+      }
+      response = verified;
+    }
+
+    const processingTime = Date.now() - startTime;
+    logger.log('info', `Request completed in ${processingTime}ms`);
+
+    return {
+      success: true,
+      data: response,
+      metadata: {
+        processingTime,
+        tokensUsed: 0, // Would need to parse from API response
+        model: 'deepseek/deepseek-r1-0528:free',
+        timestamp: new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    logger.log('error', 'Request processing failed', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Provide user-friendly error messages
+    let userMessage = errorMessage;
+    if (errorMessage.includes('API key')) {
+      userMessage = 'Please check your API key configuration.';
+    } else if (errorMessage.includes('rate limit')) {
+      userMessage = 'Too many requests—please try again in a few seconds.';
+    } else if (errorMessage.includes('timeout')) {
+      userMessage = 'Request timed out. Please try again.';
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'PROCESSING_ERROR',
+        message: userMessage,
+        details: errorMessage
+      },
+      metadata: {
+        processingTime: Date.now() - startTime,
+        tokensUsed: 0,
+        model: 'deepseek/deepseek-r1-0528:free',
+        timestamp: new Date().toISOString()
+      }
+    };
+  }
+};
+
+// Contract Review Handler
+async function handleContractReview(
+  request: LegalAIRequest,
+  entities: any,
+  apiKey: string
+): Promise<ContractReviewResponse | string> {
+  const prompt = buildContractReviewPrompt(
+    request.content,
+    request.metadata?.documentName,
+    { entities, ...request.metadata }
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  // Try to parse as JSON for structured response
+  const validation = validateJSONResponse<ContractReviewResponse>(response, 'ContractReviewResponse');
+  if (validation.valid && validation.data) {
+    return validation.data;
+  }
+  
+  // Fallback to string response
+  return response;
+}
+
+// Summarize Handler
+async function handleSummarize(
+  request: LegalAIRequest,
+  entities: any,
+  apiKey: string
+): Promise<DocumentSummaryResponse | string> {
+  const prompt = buildSummarizePrompt(
+    request.content,
+    request.metadata?.documentName,
+    request.metadata?.documentType
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  const validation = validateJSONResponse<DocumentSummaryResponse>(response, 'DocumentSummaryResponse');
+  if (validation.valid && validation.data) {
+    return validation.data;
+  }
+  
+  return response;
+}
+
+// Q&A Handler
+async function handleQA(
+  request: LegalAIRequest,
+  entities: any,
+  apiKey: string
+): Promise<QAResponse | string> {
+  // Truncate context if needed
+  const conversationHistory = request.context?.conversationHistory 
+    ? truncateContext(request.context.conversationHistory, 2000)
+    : undefined;
+
+  const prompt = buildQAPrompt(
+    request.content,
+    conversationHistory,
+    request.context?.documentContext,
+    request.context?.searchResults
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  // Q&A responses are typically unstructured
+  return response;
+}
+
+// Translation Handler
+async function handleTranslate(
+  request: LegalAIRequest,
+  apiKey: string
+): Promise<TranslationResponse | string> {
+  const targetLanguage = request.metadata?.language || 'English';
+  const sourceLanguage = 'English'; // Auto-detect could be added
+  
+  const prompt = buildTranslatePrompt(
+    request.content,
+    targetLanguage,
+    sourceLanguage
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  return response;
+}
+
+// Search Handler
+async function handleSearch(
+  request: LegalAIRequest,
+  apiKey: string
+): Promise<SearchResponse | string> {
+  if (!request.context?.searchResults || request.context.searchResults.length === 0) {
+    throw new Error('Search requires search results in context');
+  }
+
+  const prompt = buildSearchPrompt(
+    request.content,
+    request.context.searchResults
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  return response;
+}
+
+// Classification Handler
+async function handleClassify(
+  request: LegalAIRequest,
+  entities: any,
+  apiKey: string
+): Promise<ClassificationResponse | string> {
+  const prompt = buildClassifyPrompt(
+    request.content,
+    request.metadata?.documentName
+  );
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: prompt.system },
+    { role: 'user', content: prompt.user }
+  ];
+
+  const response = await retryWithBackoff(() => 
+    generateResponseWithOpenRouter(messages, apiKey)
+  );
+
+  const validation = validateJSONResponse<ClassificationResponse>(response, 'ClassificationResponse');
+  if (validation.valid && validation.data) {
+    return validation.data;
+  }
+  
+  return response;
+}
+
+// Auto-detect intent and process
+export const processAutoIntent = async (
+  text: string,
+  context?: any,
+  apiKey?: string
+): Promise<LegalAIResponse> => {
+  const { intent, confidence } = detectIntent(text);
+  
+  logger.log('info', `Auto-detected intent: ${intent} (confidence: ${confidence})`);
+  
+  const request: LegalAIRequest = {
+    intent,
+    content: text,
+    context,
+    metadata: {
+      timestamp: new Date().toISOString()
+    }
+  };
+  
+  if (!apiKey) {
+    throw new Error('API key is required');
+  }
+  
+  return processLegalAIRequest(request, apiKey);
+};
+
+// Streaming version with intent detection
+export const processLegalAIRequestStreaming = async (
+  request: LegalAIRequest,
+  apiKey: string,
+  onChunk: (chunk: string) => void,
+  onComplete?: () => void,
+  onError?: (error: Error) => void
+): Promise<void> => {
+  try {
+    logger.log('info', `Processing streaming ${request.intent} request`);
+
+    // Pre-process: Extract entities for context
+    const entities = extractEntities(request.content);
+    
+    let systemPrompt: string;
+    let userPrompt: string;
+
+    // Build prompts based on intent
+    switch (request.intent) {
+      case 'contract_review': {
+        const prompt = buildContractReviewPrompt(
+          request.content,
+          request.metadata?.documentName,
+          { entities, ...request.metadata }
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      case 'summarize': {
+        const prompt = buildSummarizePrompt(
+          request.content,
+          request.metadata?.documentName,
+          request.metadata?.documentType
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      case 'qa': {
+        const conversationHistory = request.context?.conversationHistory 
+          ? truncateContext(request.context.conversationHistory, 2000)
+          : undefined;
+        const prompt = buildQAPrompt(
+          request.content,
+          conversationHistory,
+          request.context?.documentContext,
+          request.context?.searchResults
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      case 'translate': {
+        const prompt = buildTranslatePrompt(
+          request.content,
+          request.metadata?.language || 'English',
+          'English'
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      case 'search': {
+        if (!request.context?.searchResults) {
+          throw new Error('Search requires search results in context');
+        }
+        const prompt = buildSearchPrompt(
+          request.content,
+          request.context.searchResults
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      case 'classify': {
+        const prompt = buildClassifyPrompt(
+          request.content,
+          request.metadata?.documentName
+        );
+        systemPrompt = prompt.system;
+        userPrompt = prompt.user;
+        break;
+      }
+      default:
+        throw new Error(`Unknown intent: ${request.intent}`);
+    }
+
+    const messages: OpenRouterMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ];
+
+    await generateStreamingResponseWithOpenRouter(
+      messages, 
+      apiKey, 
+      onChunk, 
+      onComplete, 
+      onError
+    );
+  } catch (error) {
+    logger.log('error', 'Streaming request failed', error);
+    onError?.(error instanceof Error ? error : new Error('Unknown error'));
+  }
+};
+
+// Legacy compatibility functions
 export const analyzeDocumentContent = async (
   documentName: string,
   documentContent: string,
   apiKey: string
 ): Promise<string> => {
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: analysisSystemPrompt },
-    {
-      role: 'user',
-      content: `Please analyze this legal document "${documentName}" thoroughly. Your response should include:
-
-1. Document Summary
-2. Key Legal Provisions (with statute citations)
-3. Parties and Roles
-4. Critical Dates and Deadlines
-5. Potential Risks and Compliance Issues
-6. Alignment with Ugandan Law (cite latest amendments)
-7. Recommendations and Next Steps`
+  const request: LegalAIRequest = {
+    intent: 'contract_review',
+    content: documentContent,
+    metadata: {
+      documentName
     }
-  ];
-
-  return generateResponseWithOpenRouter(messages, apiKey);
+  };
+  
+  const response = await processLegalAIRequest(request, apiKey);
+  
+  if (response.success && response.data) {
+    if (typeof response.data === 'string') {
+      return response.data;
+    }
+    return formatLegalResponse(response.data, 'contract_review');
+  }
+  
+  throw new Error(response.error?.message || 'Analysis failed');
 };
-
-// Enhanced system prompt for summaries
-const summarySystemPrompt = `You are a seasoned Ugandan legal AI assistant. Provide concise summaries of legal documents, ensuring:
-1. Identification of document type and legal purpose.
-2. Naming of parties and their roles.
-3. Enumeration of key dates and obligations.
-4. Reference to relevant Uganda Acts or Regulations (with year and section).
-5. Contextual notes on recent amendments or judicial interpretations.`;
 
 export const summarizeDocument = async (
   documentName: string,
@@ -264,25 +702,63 @@ export const summarizeDocument = async (
     throw new Error('No document content provided for summary.');
   }
 
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: summarySystemPrompt },
-    {
-      role: 'user',
-      content: `Summarize the document "${documentName}". Include:
-
-1. Document type and purpose
-2. Parties involved
-3. Important dates and deadlines
-4. Main obligations and rights
-5. Key legal provisions with citations
-6. Relevant Ugandan law context and amendments`
+  const request: LegalAIRequest = {
+    intent: 'summarize',
+    content: documentContent,
+    metadata: {
+      documentName
     }
-  ];
-
-  return generateResponseWithOpenRouter(messages, apiKey);
+  };
+  
+  const response = await processLegalAIRequest(request, apiKey);
+  
+  if (response.success && response.data) {
+    if (typeof response.data === 'string') {
+      return response.data;
+    }
+    return formatLegalResponse(response.data, 'summarize');
+  }
+  
+  throw new Error(response.error?.message || 'Summarization failed');
 };
 
-// Streaming version of answerQuestion
+export const answerQuestion = async (
+  question: string,
+  conversationContext: string,
+  documentContext: string | null,
+  documentContent: string | null,
+  apiKey: string
+): Promise<string> => {
+  const request: LegalAIRequest = {
+    intent: 'qa',
+    content: question,
+    context: {
+      conversationHistory: conversationContext,
+      documentContext: documentContext || undefined
+    },
+    metadata: {
+      documentName: documentContext || undefined
+    }
+  };
+  
+  // Add document content to the question if provided
+  if (documentContent) {
+    request.content = `${question}\n\nDOCUMENT CONTENT:\n${documentContent}`;
+  }
+  
+  const response = await processLegalAIRequest(request, apiKey);
+  
+  if (response.success && response.data) {
+    if (typeof response.data === 'string') {
+      return response.data;
+    }
+    return formatLegalResponse(response.data, 'qa');
+  }
+  
+  throw new Error(response.error?.message || 'Question answering failed');
+};
+
+// Streaming versions for legacy compatibility
 export const answerQuestionStreaming = async (
   question: string,
   conversationContext: string,
@@ -293,32 +769,25 @@ export const answerQuestionStreaming = async (
   onComplete?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> => {
-  let systemPrompt = qaSystemPromptBase;
+  const request: LegalAIRequest = {
+    intent: 'qa',
+    content: question,
+    context: {
+      conversationHistory: conversationContext,
+      documentContext: documentContext || undefined
+    },
+    metadata: {
+      documentName: documentContext || undefined
+    }
+  };
   
-  if (conversationContext) {
-    systemPrompt += `\n\nConversation History:\n${conversationContext}`;
+  if (documentContent) {
+    request.content = `${question}\n\nDOCUMENT CONTENT:\n${documentContent}`;
   }
   
-  if (documentContext) {
-    systemPrompt += `\n\nDocument Context: "${documentContext}"`;
-  }
-
-  const userContent = documentContent
-    ? `Based on the conversation history and document content, please answer: ${question}
-
-DOCUMENT CONTENT:
-${documentContent}`
-    : `Based on the conversation history, please answer: ${question}`;
-
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userContent }
-  ];
-
-  return generateStreamingResponseWithOpenRouter(messages, apiKey, onChunk, onComplete, onError);
+  await processLegalAIRequestStreaming(request, apiKey, onChunk, onComplete, onError);
 };
 
-// Streaming version of summarizeDocument
 export const summarizeDocumentStreaming = async (
   documentName: string,
   documentContent: string | null,
@@ -332,25 +801,17 @@ export const summarizeDocumentStreaming = async (
     return;
   }
 
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: summarySystemPrompt },
-    {
-      role: 'user',
-      content: `Summarize the document "${documentName}". Include:
-
-1. Document type and purpose
-2. Parties involved
-3. Important dates and deadlines
-4. Main obligations and rights
-5. Key legal provisions with citations
-6. Relevant Ugandan law context and amendments`
+  const request: LegalAIRequest = {
+    intent: 'summarize',
+    content: documentContent,
+    metadata: {
+      documentName
     }
-  ];
-
-  return generateStreamingResponseWithOpenRouter(messages, apiKey, onChunk, onComplete, onError);
+  };
+  
+  await processLegalAIRequestStreaming(request, apiKey, onChunk, onComplete, onError);
 };
 
-// Streaming version of analyzeDocumentContent
 export const analyzeDocumentContentStreaming = async (
   documentName: string,
   documentContent: string,
@@ -359,60 +820,13 @@ export const analyzeDocumentContentStreaming = async (
   onComplete?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> => {
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: analysisSystemPrompt },
-    {
-      role: 'user',
-      content: `Please analyze this legal document "${documentName}" thoroughly. Your response should include:
-
-1. Document Summary
-2. Key Legal Provisions (with statute citations)
-3. Parties and Roles
-4. Critical Dates and Deadlines
-5. Potential Risks and Compliance Issues
-6. Alignment with Ugandan Law (cite latest amendments)
-7. Recommendations and Next Steps`
+  const request: LegalAIRequest = {
+    intent: 'contract_review',
+    content: documentContent,
+    metadata: {
+      documentName
     }
-  ];
-
-  return generateStreamingResponseWithOpenRouter(messages, apiKey, onChunk, onComplete, onError);
-};
-
-// Enhanced system prompt for Q&A
-const qaSystemPromptBase = `You are a knowledgeable Ugandan legal AI assistant. Answer questions based on provided context and general Ugandan law, ensuring you:
-1. Cite specific statutes, regulations, or case law by name, year, and section.
-2. Use the latest consolidated versions as of  2025.
-3. Provide brief footnote citations for each legal reference.
-4. Offer clear, actionable guidance rooted in current Ugandan legal practice.`;
-
-export const answerQuestion = async (
-  question: string,
-  conversationContext: string,
-  documentContext: string | null,
-  documentContent: string | null,
-  apiKey: string
-): Promise<string> => {
-  let systemPrompt = qaSystemPromptBase;
+  };
   
-  if (conversationContext) {
-    systemPrompt += `\n\nConversation History:\n${conversationContext}`;
-  }
-  
-  if (documentContext) {
-    systemPrompt += `\n\nDocument Context: "${documentContext}"`;
-  }
-
-  const userContent = documentContent
-    ? `Based on the conversation history and document content, please answer: ${question}
-
-DOCUMENT CONTENT:
-${documentContent}`
-    : `Based on the conversation history, please answer: ${question}`;
-
-  const messages: OpenRouterMessage[] = [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: userContent }
-  ];
-
-  return generateResponseWithOpenRouter(messages, apiKey);
+  await processLegalAIRequestStreaming(request, apiKey, onChunk, onComplete, onError);
 };

@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { useSettingsStore } from '@/stores/settingsStore';
 import { Send, Loader2, FileText, MessageSquare, AlertCircle, Bot, User, Mic, MicOff } from 'lucide-react';
 import { toast } from "@/components/ui/use-toast";
 import { 
@@ -17,6 +19,7 @@ import {
   summarizeDocumentStreaming,
   analyzeDocumentContentStreaming
 } from '@/frontend/services/openRouterService';
+import { generateChatTitleFromMessages } from '@/frontend/services/legalAIUtils';
 import { useMessageStore, useInitialGreeting } from '@/stores/messageStore';
 
 type Document = {
@@ -341,12 +344,18 @@ const Chat = () => {
     activeDocument,
     isProcessing,
     addMessage,
+    savedHistories,
+    saveCurrentHistory,
+    loadHistory,
+    startNewChat,
+    updateMessage,
     setActiveDocument,
     setProcessing,
     getConversationContext
   } = useMessageStore();
   
   const [inputValue, setInputValue] = useState('');
+  const { jurisdiction, setJurisdiction } = useSettingsStore();
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -358,6 +367,9 @@ const Chat = () => {
 
   const handleSendMessage = async () => {
     if (inputValue.trim() === '') return;
+    
+    // Prevent duplicate submissions during processing
+    if (isLoading || isProcessing) return;
 
     if (!apiKey) {
       toast({
@@ -368,15 +380,15 @@ const Chat = () => {
       return;
     }
 
+    const userInput = inputValue.trim();
+    setInputValue('');
+
     // Add user message to shared store
     addMessage({
-      content: inputValue,
+      content: userInput,
       sender: 'user',
       source: 'chat'
     });
-    
-    const userInput = inputValue;
-    setInputValue('');
 
     // Greeting check
     if (isGreeting(userInput)) {
@@ -394,46 +406,97 @@ const Chat = () => {
     // Get conversational context from store
     const context = getConversationContext(10);
 
-    // For streaming, we'll collect the response and add it at the end
+    // Create a placeholder message for streaming
     let fullResponse = '';
+    let streamingMessageId: string | null = null;
+    let hasCompleted = false; // Flag to prevent duplicate completion handling
+    let isFirstChunk = true;
 
     try {
+      const jurisdictionPrefixedInput = `Jurisdiction: ${jurisdiction.name}. ${userInput}`;
       await answerQuestionStreaming(
-        userInput,
+        jurisdictionPrefixedInput,
         context,
         activeDocument?.name || null,
         activeDocument?.content || null,
         apiKey,
-        // onChunk callback - collect chunks
+        // onChunk callback - update message in real-time
         (chunk: string) => {
           fullResponse += chunk;
+          
+          // Add or update the streaming message
+          if (isFirstChunk) {
+            isFirstChunk = false;
+            streamingMessageId = `msg-${Date.now()}-ai`;
+            addMessage({
+              content: fullResponse,
+              sender: 'ai',
+              source: 'chat'
+            });
+          } else if (streamingMessageId) {
+            // Update the existing message
+            updateMessage(streamingMessageId, { content: fullResponse });
+          }
         },
         // onComplete callback
         () => {
-          // Add the complete AI response to the store
-          if (fullResponse.trim()) {
+          // Prevent duplicate completion handling (React StrictMode issue)
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
+          // Final update to ensure complete message is shown
+          if (streamingMessageId && fullResponse.trim()) {
+            updateMessage(streamingMessageId, { content: fullResponse });
+          } else if (!streamingMessageId && fullResponse.trim()) {
+            // Fallback: add message if streaming didn't start
             addMessage({
               content: fullResponse,
               sender: 'ai',
               source: 'chat'
             });
           }
+          
+          // Auto-save/update chat title after completion
+          try {
+            const title = generateChatTitleFromMessages([...messages, { id: 'tmp', content: jurisdictionPrefixedInput, sender: 'user', timestamp: new Date() } as any]);
+            // Save silently if none exists yet
+            if (!savedHistories || savedHistories.length === 0) {
+              saveCurrentHistory(title);
+            } else {
+              // Update the most recent saved history title if it's the active one
+              // Minimal: re-save creating a new snapshot to keep it simple
+              saveCurrentHistory(title);
+            }
+          } catch {}
+
           setIsLoading(false);
           setProcessing(false);
         },
         // onError callback
         (error: Error) => {
+          // Prevent duplicate error handling
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
           console.error("OpenRouter Streaming Error:", error);
           
           let errorContent = "I apologize, but I encountered an error while processing your request. ";
           errorContent += `Error details: ${error.message}`;
 
-          addMessage({
-            content: errorContent,
-            sender: 'ai',
-            source: 'chat',
-            isError: true
-          });
+          // Remove partial message if exists and add error message
+          if (streamingMessageId) {
+            updateMessage(streamingMessageId, { 
+              content: errorContent, 
+              isError: true 
+            });
+          } else {
+            addMessage({
+              content: errorContent,
+              sender: 'ai',
+              source: 'chat',
+              isError: true
+            });
+          }
           
           toast({
             title: "API Error",
@@ -446,6 +509,10 @@ const Chat = () => {
         }
       );
     } catch (error) {
+      // Prevent duplicate error handling
+      if (hasCompleted) return;
+      hasCompleted = true;
+      
       console.error("OpenRouter API Error:", error);
       
       let errorContent = "I apologize, but I encountered an error while processing your request. ";
@@ -455,12 +522,20 @@ const Chat = () => {
         errorContent += "Please check the console for more details.";
       }
 
-      addMessage({
-        content: errorContent,
-        sender: 'ai',
-        source: 'chat',
-        isError: true
-      });
+      // Remove partial message if exists and add error message
+      if (streamingMessageId) {
+        updateMessage(streamingMessageId, { 
+          content: errorContent, 
+          isError: true 
+        });
+      } else {
+        addMessage({
+          content: errorContent,
+          sender: 'ai',
+          source: 'chat',
+          isError: true
+        });
+      }
 
       toast({
         title: "API Error",
@@ -468,8 +543,10 @@ const Chat = () => {
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
-      setProcessing(false);
+      if (!hasCompleted) {
+        setIsLoading(false);
+        setProcessing(false);
+      }
     }
   };
 
@@ -492,6 +569,9 @@ const Chat = () => {
       return;
     }
 
+    // Prevent duplicate submissions during processing
+    if (isLoading || isProcessing) return;
+
     setIsLoading(true);
     setProcessing(true);
 
@@ -502,38 +582,84 @@ const Chat = () => {
       source: 'chat'
     });
 
-    let fullSummary = `Document Summary for "${activeDocument.name}": `;
+    let fullSummary = '';
+    const summaryPrefix = `**Document Summary for "${activeDocument.name}":**\n\n`;
+    let streamingMessageId: string | null = null;
+    let hasCompleted = false;
+    let isFirstChunk = true;
 
     try {
       await summarizeDocumentStreaming(
         activeDocument.name,
         activeDocument.content,
         apiKey,
-        // onChunk callback
+        // onChunk callback - update message in real-time
         (chunk: string) => {
           fullSummary += chunk;
+          
+          // Add or update the streaming message
+          if (isFirstChunk) {
+            isFirstChunk = false;
+            streamingMessageId = `msg-${Date.now()}-ai`;
+            addMessage({
+              content: summaryPrefix + fullSummary,
+              sender: 'ai',
+              source: 'chat'
+            });
+          } else if (streamingMessageId) {
+            // Update the existing message
+            updateMessage(streamingMessageId, { 
+              content: summaryPrefix + fullSummary 
+            });
+          }
         },
         // onComplete callback
         () => {
-          // Add complete summary to store
-          addMessage({
-            content: fullSummary,
-            sender: 'ai',
-            source: 'chat'
-          });
+          // Prevent duplicate completion handling (React StrictMode issue)
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
+          // Final update to ensure complete message is shown
+          if (streamingMessageId && fullSummary.trim()) {
+            updateMessage(streamingMessageId, { 
+              content: summaryPrefix + fullSummary 
+            });
+          } else if (!streamingMessageId && fullSummary.trim()) {
+            // Fallback: add message if streaming didn't start
+            addMessage({
+              content: summaryPrefix + fullSummary,
+              sender: 'ai',
+              source: 'chat'
+            });
+          }
+          
           setIsLoading(false);
           setProcessing(false);
         },
         // onError callback
         (error: Error) => {
+          // Prevent duplicate error handling
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
           console.error("Error summarizing document:", error);
           
-          addMessage({
-            content: error.message || "Failed to summarize the document. Please try again.",
-            sender: 'ai',
-            source: 'chat',
-            isError: true
-          });
+          const errorContent = error.message || "Failed to summarize the document. Please try again.";
+          
+          // Remove partial message if exists and add error message
+          if (streamingMessageId) {
+            updateMessage(streamingMessageId, { 
+              content: errorContent, 
+              isError: true 
+            });
+          } else {
+            addMessage({
+              content: errorContent,
+              sender: 'ai',
+              source: 'chat',
+              isError: true
+            });
+          }
           
           toast({
             title: "Error",
@@ -546,14 +672,28 @@ const Chat = () => {
         }
       );
     } catch (error) {
+      // Prevent duplicate error handling
+      if (hasCompleted) return;
+      hasCompleted = true;
+      
       console.error("Error summarizing document:", error);
 
-      addMessage({
-        content: error instanceof Error ? error.message : "Failed to summarize the document. Please try again.",
-        sender: 'ai',
-        source: 'chat',
-        isError: true
-      });
+      const errorContent = error instanceof Error ? error.message : "Failed to summarize the document. Please try again.";
+      
+      // Remove partial message if exists and add error message
+      if (streamingMessageId) {
+        updateMessage(streamingMessageId, { 
+          content: errorContent, 
+          isError: true 
+        });
+      } else {
+        addMessage({
+          content: errorContent,
+          sender: 'ai',
+          source: 'chat',
+          isError: true
+        });
+      }
 
       toast({
         title: "Error",
@@ -561,8 +701,10 @@ const Chat = () => {
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
-      setProcessing(false);
+      if (!hasCompleted) {
+        setIsLoading(false);
+        setProcessing(false);
+      }
     }
   };
 
@@ -576,6 +718,9 @@ const Chat = () => {
       return;
     }
 
+    // Prevent duplicate submissions during processing
+    if (isLoading || isProcessing) return;
+
     setIsLoading(true);
     setProcessing(true);
 
@@ -586,38 +731,84 @@ const Chat = () => {
       source: 'chat'
     });
 
-    let fullAnalysis = `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`;
+    let fullAnalysis = '';
+    const analysisPrefix = `**Comprehensive Legal Analysis for "${activeDocument.name}":**\n\n`;
+    let streamingMessageId: string | null = null;
+    let hasCompleted = false;
+    let isFirstChunk = true;
 
     try {
       await analyzeDocumentContentStreaming(
         activeDocument.name,
         activeDocument.content,
         apiKey,
-        // onChunk callback
+        // onChunk callback - update message in real-time
         (chunk: string) => {
           fullAnalysis += chunk;
+          
+          // Add or update the streaming message
+          if (isFirstChunk) {
+            isFirstChunk = false;
+            streamingMessageId = `msg-${Date.now()}-ai`;
+            addMessage({
+              content: analysisPrefix + fullAnalysis,
+              sender: 'ai',
+              source: 'chat'
+            });
+          } else if (streamingMessageId) {
+            // Update the existing message
+            updateMessage(streamingMessageId, { 
+              content: analysisPrefix + fullAnalysis 
+            });
+          }
         },
         // onComplete callback
         () => {
-          // Add complete analysis to store
-          addMessage({
-            content: fullAnalysis,
-            sender: 'ai',
-            source: 'chat'
-          });
+          // Prevent duplicate completion handling (React StrictMode issue)
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
+          // Final update to ensure complete message is shown
+          if (streamingMessageId && fullAnalysis.trim()) {
+            updateMessage(streamingMessageId, { 
+              content: analysisPrefix + fullAnalysis 
+            });
+          } else if (!streamingMessageId && fullAnalysis.trim()) {
+            // Fallback: add message if streaming didn't start
+            addMessage({
+              content: analysisPrefix + fullAnalysis,
+              sender: 'ai',
+              source: 'chat'
+            });
+          }
+          
           setIsLoading(false);
           setProcessing(false);
         },
         // onError callback
         (error: Error) => {
+          // Prevent duplicate error handling
+          if (hasCompleted) return;
+          hasCompleted = true;
+          
           console.error("Error analyzing document:", error);
           
-          addMessage({
-            content: error.message || "Failed to analyze the document. Please try again.",
-            sender: 'ai',
-            source: 'chat',
-            isError: true
-          });
+          const errorContent = error.message || "Failed to analyze the document. Please try again.";
+          
+          // Remove partial message if exists and add error message
+          if (streamingMessageId) {
+            updateMessage(streamingMessageId, { 
+              content: errorContent, 
+              isError: true 
+            });
+          } else {
+            addMessage({
+              content: errorContent,
+              sender: 'ai',
+              source: 'chat',
+              isError: true
+            });
+          }
           
           toast({
             title: "Error",
@@ -630,14 +821,28 @@ const Chat = () => {
         }
       );
     } catch (error) {
+      // Prevent duplicate error handling
+      if (hasCompleted) return;
+      hasCompleted = true;
+      
       console.error("Error analyzing document:", error);
 
-      addMessage({
-        content: error instanceof Error ? error.message : "Failed to analyze the document. Please try again.",
-        sender: 'ai',
-        source: 'chat',
-        isError: true
-      });
+      const errorContent = error instanceof Error ? error.message : "Failed to analyze the document. Please try again.";
+      
+      // Remove partial message if exists and add error message
+      if (streamingMessageId) {
+        updateMessage(streamingMessageId, { 
+          content: errorContent, 
+          isError: true 
+        });
+      } else {
+        addMessage({
+          content: errorContent,
+          sender: 'ai',
+          source: 'chat',
+          isError: true
+        });
+      }
 
       toast({
         title: "Error",
@@ -645,8 +850,10 @@ const Chat = () => {
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
-      setProcessing(false);
+      if (!hasCompleted) {
+        setIsLoading(false);
+        setProcessing(false);
+      }
     }
   };
 
@@ -661,22 +868,54 @@ const Chat = () => {
     navigate('/voice');
   };
 
+  // Local component for Saved History Controls to keep main JSX tidy
+  const SavedHistoryControls: React.FC = React.useMemo(() => {
+    const Comp: React.FC = () => (
+      <div className="flex items-center gap-2">
+        <div className="w-64">
+          <Select onValueChange={(id) => loadHistory(id)}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Load chat history..." />
+            </SelectTrigger>
+            <SelectContent>
+              {savedHistories.length === 0 ? (
+                <SelectItem value="__none" disabled>
+                  No saved histories
+                </SelectItem>
+              ) : (
+                savedHistories.map((h) => (
+                  <SelectItem key={h.id} value={h.id}>
+                    {h.title}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button size="sm" variant="outline" onClick={startNewChat} className="h-9">
+          New Chat
+        </Button>
+      </div>
+    );
+    return Comp;
+  }, [savedHistories, loadHistory, startNewChat]);
+
   return (
     <div className="flex flex-col h-screen bg-legal-light">
       <Navbar />
-      <main className="flex-1 container mx-auto px-4 py-4 flex flex-col overflow-hidden">
-        <div className="mb-4 flex items-center">
-          <MessageSquare className="mr-3 h-7 w-7 text-legal-secondary" />
-          <h1 className="font-serif text-3xl font-bold text-legal-primary">AI Legal Assistant</h1>
+      <main className="flex-1 container mx-auto px-2 sm:px-4 py-3 sm:py-4 flex flex-col overflow-hidden">
+        <div className="mb-3 sm:mb-4 flex items-center">
+          <MessageSquare className="mr-2 sm:mr-3 h-6 w-6 sm:h-7 sm:w-7 text-legal-secondary" />
+          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-legal-primary">AI Legal Assistant</h1>
         </div>
         
         {/* Enhanced Chat Interface */}
         <div className="flex flex-col flex-1 bg-white rounded-lg shadow-lg border border-gray-100 overflow-hidden">
           <Tabs defaultValue="chat" className="flex-1 flex flex-col min-h-0">
             {/* Header/Tab Navigation */}
-            <div className="border-b bg-gray-50 px-4 py-3 rounded-t-lg">
-              <div className="flex justify-between items-center">
-                <TabsList className="grid w-full max-w-md grid-cols-2 bg-gray-100">
+            <div className="border-b bg-gray-50 px-3 sm:px-4 py-2.5 sm:py-3 rounded-t-lg">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2 bg-gray-100">
                   <TabsTrigger value="chat" className="flex items-center gap-2 data-[state=active]:bg-legal-primary data-[state=active]:text-white data-[state=active]:shadow-sm">
                     <MessageSquare className="h-4 w-4" />
                     <span>Chat</span>
@@ -687,7 +926,7 @@ const Chat = () => {
                   </TabsTrigger>
                 </TabsList>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap md:flex-nowrap">
                   {activeDocument && (
                     <>
                       <Button
@@ -695,7 +934,7 @@ const Chat = () => {
                         disabled={isLoading}
                         variant="outline"
                         size="sm"
-                        className="hover:bg-legal-light text-legal-primary border-legal-primary"
+                className="hover:bg-legal-light text-legal-primary border-legal-primary"
                       >
                         Summarize
                       </Button>
@@ -713,12 +952,54 @@ const Chat = () => {
                     </>
                   )}
                 </div>
+                
+                {/* Jurisdiction & History Controls */}
+                <div className="flex items-stretch md:items-center gap-2 md:gap-3 flex-col md:flex-row w-full md:w-auto">
+                  {/* Jurisdiction Select */}
+                  <div className="w-full md:w-52">
+                    <Select
+                      value={jurisdiction.code}
+                      onValueChange={(val) => {
+                        const mapping: Record<string, { code: string; name: string }> = {
+                          UG: { code: 'UG', name: 'Uganda' },
+                          KE: { code: 'KE', name: 'Kenya' },
+                          TZ: { code: 'TZ', name: 'Tanzania' },
+                          RW: { code: 'RW', name: 'Rwanda' },
+                          NG: { code: 'NG', name: 'Nigeria' },
+                          ZA: { code: 'ZA', name: 'South Africa' },
+                          GB: { code: 'GB', name: 'United Kingdom' },
+                          US: { code: 'US', name: 'United States' },
+                        };
+                        const selected = mapping[val] || mapping.UG;
+                        setJurisdiction(selected);
+                        toast({ title: 'Jurisdiction set', description: selected.name });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue placeholder="Jurisdiction" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="UG">Uganda</SelectItem>
+                        <SelectItem value="KE">Kenya</SelectItem>
+                        <SelectItem value="TZ">Tanzania</SelectItem>
+                        <SelectItem value="RW">Rwanda</SelectItem>
+                        <SelectItem value="NG">Nigeria</SelectItem>
+                        <SelectItem value="ZA">South Africa</SelectItem>
+                        <SelectItem value="GB">United Kingdom</SelectItem>
+                        <SelectItem value="US">United States</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Saved Histories Select + Save Button */}
+                  <SavedHistoryControls />
+                </div>
               </div>
             </div>
 
             {/* Chat Content Tab */}
             <TabsContent value="chat" className="flex-1 flex flex-col overflow-hidden mt-0">
-              <div className="flex-1 overflow-y-auto bg-white p-4">
+              <div className="flex-1 overflow-y-auto bg-white p-3 sm:p-4">
                 <ScrollArea className="h-full">
                   <div className="space-y-6 pb-4">
                     {messages.map((message) => (
@@ -803,8 +1084,8 @@ const Chat = () => {
               </div>
 
               {/* Fixed Message Input */}
-              <div className="border-t bg-gray-50 px-4 py-4">
-                <div className="flex gap-3 items-center">
+              <div className="border-t bg-gray-50 px-3 sm:px-4 py-3 sm:py-4">
+                <div className="flex gap-2 sm:gap-3 items-center">
                   <div className="flex-1 relative">
                     <Input
                       value={inputValue}
@@ -813,7 +1094,7 @@ const Chat = () => {
                       placeholder={activeDocument
                         ? `Ask about "${activeDocument.name}" or Ugandan law...`
                         : "Ask a question about Ugandan law..."}
-                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-24 py-3 shadow-sm bg-white h-12"
+                      className="rounded-full border-gray-300 focus:border-legal-primary focus:ring-legal-primary pr-24 py-2.5 sm:py-3 shadow-sm bg-white h-11 sm:h-12"
                       disabled={isLoading || isListening}
                     />
                     

@@ -28,6 +28,8 @@ interface MessageStore {
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
   activeDocument: Document | null;
   isProcessing: boolean;
+  savedHistories: Array<{ id: string; title: string; messages: Message[]; createdAt: string }>;
+  currentHistoryId: string | null;
   
   // Actions
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
@@ -35,6 +37,10 @@ interface MessageStore {
   clearMessages: () => void;
   setActiveDocument: (document: Document | null) => void;
   setProcessing: (isProcessing: boolean) => void;
+  saveCurrentHistory: (title?: string) => string; // returns saved id
+  loadHistory: (id: string) => void;
+  deleteHistory: (id: string) => void;
+  startNewChat: () => void;
   
   // Get conversation context for AI
   getConversationContext: (limit?: number) => string;
@@ -52,6 +58,8 @@ export const useMessageStore = create<MessageStore>()(
       conversationHistory: [],
       activeDocument: null,
       isProcessing: false,
+      savedHistories: [],
+      currentHistoryId: null,
       
       // Add a new message
       addMessage: (messageData) => {
@@ -100,6 +108,53 @@ export const useMessageStore = create<MessageStore>()(
         set({ isProcessing });
       },
       
+      // Save current messages as a history entry
+      saveCurrentHistory: (title) => {
+        const { messages } = get();
+        const id = `hist-${Date.now()}`;
+        const newHist = {
+          id,
+          title: title || new Date().toLocaleString(),
+          messages: [...messages],
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({
+          savedHistories: [newHist, ...state.savedHistories].slice(0, 50),
+          currentHistoryId: id,
+        }));
+        return id;
+      },
+      
+      // Load a saved history into current messages
+      loadHistory: (id) => {
+        const { savedHistories } = get();
+        const found = savedHistories.find((h) => h.id === id);
+        if (!found) return;
+        set({
+          messages: found.messages.map((m) => ({
+            ...m,
+            timestamp: m.timestamp instanceof Date ? m.timestamp : new Date(m.timestamp as any),
+          })),
+          conversationHistory: found.messages
+            .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.content }))
+            .slice(-20),
+          currentHistoryId: id,
+        });
+      },
+      
+      // Delete a saved history
+      deleteHistory: (id) => {
+        set((state) => ({
+          savedHistories: state.savedHistories.filter((h) => h.id !== id),
+          currentHistoryId: state.currentHistoryId === id ? null : state.currentHistoryId,
+        }));
+      },
+
+      // Start a brand new empty chat
+      startNewChat: () => {
+        set({ messages: [], conversationHistory: [], currentHistoryId: null });
+      },
+      
       // Get conversation context for AI
       getConversationContext: (limit = 10) => {
         const { messages } = get();
@@ -144,6 +199,8 @@ export const useMessageStore = create<MessageStore>()(
         messages: state.messages.slice(-50), // Keep last 50 messages
         conversationHistory: state.conversationHistory,
         activeDocument: state.activeDocument,
+        savedHistories: state.savedHistories.slice(0, 100),
+        currentHistoryId: state.currentHistoryId,
       }),
       // Handle date serialization/deserialization
       storage: {
