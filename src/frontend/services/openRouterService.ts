@@ -579,12 +579,13 @@ export const processLegalAIRequestStreaming = async (
     let userPrompt: string;
 
     // Build prompts based on intent
+    const jurisdiction = request.metadata?.jurisdiction || 'Uganda';
     switch (request.intent) {
       case 'contract_review': {
         const prompt = buildContractReviewPrompt(
           request.content,
           request.metadata?.documentName,
-          { entities, ...request.metadata }
+          { entities, jurisdiction, ...request.metadata }
         );
         systemPrompt = prompt.system;
         userPrompt = prompt.user;
@@ -596,7 +597,7 @@ export const processLegalAIRequestStreaming = async (
           request.metadata?.documentName,
           request.metadata?.documentType
         );
-        systemPrompt = prompt.system;
+        systemPrompt = prompt.system.replace(/\{\{jurisdiction\}\}/g, jurisdiction);
         userPrompt = prompt.user;
         break;
       }
@@ -610,7 +611,7 @@ export const processLegalAIRequestStreaming = async (
           request.context?.documentContext,
           request.context?.searchResults
         );
-        systemPrompt = prompt.system;
+        systemPrompt = prompt.system.replace(/\{\{jurisdiction\}\}/g, jurisdiction);
         userPrompt = prompt.user;
         break;
       }
@@ -620,7 +621,7 @@ export const processLegalAIRequestStreaming = async (
           request.metadata?.language || 'English',
           'English'
         );
-        systemPrompt = prompt.system;
+        systemPrompt = prompt.system.replace(/\{\{jurisdiction\}\}/g, jurisdiction);
         userPrompt = prompt.user;
         break;
       }
@@ -632,7 +633,7 @@ export const processLegalAIRequestStreaming = async (
           request.content,
           request.context.searchResults
         );
-        systemPrompt = prompt.system;
+        systemPrompt = prompt.system.replace(/\{\{jurisdiction\}\}/g, jurisdiction);
         userPrompt = prompt.user;
         break;
       }
@@ -641,7 +642,7 @@ export const processLegalAIRequestStreaming = async (
           request.content,
           request.metadata?.documentName
         );
-        systemPrompt = prompt.system;
+        systemPrompt = prompt.system.replace(/\{\{jurisdiction\}\}/g, jurisdiction);
         userPrompt = prompt.user;
         break;
       }
@@ -769,6 +770,9 @@ export const answerQuestionStreaming = async (
   onComplete?: () => void,
   onError?: (error: Error) => void
 ): Promise<void> => {
+  // Attempt to extract jurisdiction from the question prefix to place in metadata
+  let jurisdictionMatch = question.match(/^Jurisdiction:\s*([^.]+)\./i);
+  const jurisdiction = jurisdictionMatch ? jurisdictionMatch[1].trim() : undefined;
   const request: LegalAIRequest = {
     intent: 'qa',
     content: question,
@@ -777,7 +781,8 @@ export const answerQuestionStreaming = async (
       documentContext: documentContext || undefined
     },
     metadata: {
-      documentName: documentContext || undefined
+      documentName: documentContext || undefined,
+      jurisdiction
     }
   };
   

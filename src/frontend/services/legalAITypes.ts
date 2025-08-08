@@ -197,6 +197,7 @@ export interface LegalAIRequest {
     documentName?: string;
     documentType?: string;
     language?: string;
+    jurisdiction?: string;
     userId?: string;
     sessionId?: string;
     timestamp?: string;

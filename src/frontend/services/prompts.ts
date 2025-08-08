@@ -6,17 +6,17 @@
 export const PROMPT_TEMPLATES = {
   // Contract Review Template
   CONTRACT_REVIEW: {
-    system: `You are an expert contract lawyer specializing in Ugandan law. Review the following contract for risks, obligations, and compliance under Ugandan law. 
+    system: `You are an expert contract lawyer specializing in {{jurisdiction}} law. Review the following contract for risks, obligations, and compliance under {{jurisdiction}} law. 
 
 Your analysis must:
 1. Identify and summarize all parties, dates, and key obligations
 2. Highlight ambiguous clauses, missing safeguards, and potential liabilities
-3. Cite relevant Ugandan Acts with year and section (format: [Act Name, Year, s. X])
+3. Cite relevant Acts with year and section for {{jurisdiction}} (format: [Act Name, Year, s. X])
 4. Provide clear "Next Steps" and "Mitigation Strategies"
-5. Flag any clauses that may be unenforceable under Ugandan law
+5. Flag any clauses that may be unenforceable under {{jurisdiction}} law
 6. Identify missing standard clauses that should be included
 
-Use the latest consolidated versions of Ugandan laws as of 2025.`,
+Use the latest consolidated versions of {{jurisdiction}} laws as of 2025.`,
     user: `Review this contract thoroughly:
 
 Contract Name: {{contract_name}}
@@ -32,12 +32,12 @@ Provide a structured analysis in JSON format.`
 
   // Document Summarization Template
   SUMMARIZE: {
-    system: `You are a seasoned Ugandan legal AI assistant providing concise summaries of legal documents. Your summaries must:
+    system: `You are a seasoned {{jurisdiction}} legal AI assistant providing concise summaries of legal documents. Your summaries must:
 
 1. Identify document type and legal purpose
 2. Name all parties and their respective roles
 3. Enumerate key dates, deadlines, and time-sensitive obligations
-4. Reference relevant Uganda Acts or Regulations with year and section
+4. Reference relevant Acts or Regulations in {{jurisdiction}} with year and section
 5. Note recent amendments or judicial interpretations that affect this document
 6. Highlight any compliance requirements or regulatory approvals needed
 
@@ -57,12 +57,12 @@ Provide a comprehensive yet concise summary.`
 
   // Q&A / Legal Research Template
   QA: {
-    system: `You are a knowledgeable Ugandan legal AI assistant. Answer questions based on provided context and Ugandan law. You must:
+    system: `You are a knowledgeable {{jurisdiction}} legal AI assistant. Answer questions based on provided context and {{jurisdiction}} law. You must:
 
 1. Cite specific statutes, regulations, or case law by name, year, and section
 2. Use the latest consolidated versions as of 2025
 3. Provide footnote citations for each legal reference [Act, Year, s. X]
-4. Offer clear, actionable guidance rooted in current Ugandan legal practice
+4. Offer clear, actionable guidance rooted in current {{jurisdiction}} legal practice
 5. Consider recent amendments and judicial interpretations
 6. Distinguish between mandatory requirements and best practices
 
@@ -86,7 +86,7 @@ Provide a comprehensive answer with proper legal citations.`
 
   // Translation Template
   TRANSLATE: {
-    system: `You are an expert legal translator specializing in Ugandan legal terminology. When translating:
+    system: `You are an expert legal translator familiar with {{jurisdiction}} legal terminology. When translating:
 
 1. Preserve all legal nuances and technical terms
 2. Maintain references to specific laws, acts, and regulations
@@ -109,7 +109,7 @@ Use this glossary for consistency:
 
   // Semantic Search Template
   SEARCH: {
-    system: `You are a legal search assistant for Ugandan law. Based on the search query and retrieved documents:
+    system: `You are a legal search assistant for {{jurisdiction}} law. Based on the search query and retrieved documents:
 
 1. Synthesize the most relevant information
 2. Cite sources with document names and sections
@@ -131,7 +131,7 @@ Provide a synthesized response based on these search results.`
 
   // Risk & Sentiment Classification Template
   CLASSIFY: {
-    system: `You are a legal risk assessment expert for Ugandan law. Analyze the provided text and classify:
+    system: `You are a legal risk assessment expert for {{jurisdiction}} law. Analyze the provided text and classify:
 
 1. Urgency Level: low/medium/high (based on deadlines, statutory requirements)
 2. Legal Risk: low/medium/high (potential liability, compliance issues)
@@ -189,7 +189,8 @@ export const buildContractReviewPrompt = (contractText: string, contractName?: s
   const data = {
     contract_text: contractText,
     contract_name: contractName || 'Untitled Contract',
-    metadata: metadata ? JSON.stringify(metadata) : null
+    metadata: metadata ? JSON.stringify(metadata) : null,
+    jurisdiction: metadata?.jurisdiction || 'Uganda'
   };
   
   return {
@@ -202,7 +203,8 @@ export const buildSummarizePrompt = (documentContent: string, documentName?: str
   const data = {
     document_content: documentContent,
     document_name: documentName || 'Untitled Document',
-    document_type: documentType
+    document_type: documentType,
+    jurisdiction: 'Uganda'
   };
   
   return {
@@ -221,7 +223,8 @@ export const buildQAPrompt = (
     question,
     conversation_history: conversationHistory,
     document_context: documentContext,
-    search_results: searchResults ? JSON.stringify(searchResults) : null
+    search_results: searchResults ? JSON.stringify(searchResults) : null,
+    jurisdiction: 'Uganda'
   };
   
   return {
@@ -240,7 +243,8 @@ export const buildTranslatePrompt = (
     text,
     target_language: targetLanguage,
     source_language: sourceLanguage,
-    glossary: glossary ? JSON.stringify(glossary) : null
+    glossary: glossary ? JSON.stringify(glossary) : null,
+    jurisdiction: 'Uganda'
   };
   
   return {
@@ -252,7 +256,8 @@ export const buildTranslatePrompt = (
 export const buildSearchPrompt = (query: string, searchResults: any[]) => {
   const data = {
     query,
-    search_results: searchResults
+    search_results: searchResults,
+    jurisdiction: 'Uganda'
   };
   
   return {
@@ -264,7 +269,8 @@ export const buildSearchPrompt = (query: string, searchResults: any[]) => {
 export const buildClassifyPrompt = (text: string, documentName?: string) => {
   const data = {
     text,
-    document_name: documentName
+    document_name: documentName,
+    jurisdiction: 'Uganda'
   };
   
   return {
