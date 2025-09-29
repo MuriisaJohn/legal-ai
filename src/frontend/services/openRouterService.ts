@@ -173,7 +173,7 @@ export const generateStreamingResponseWithOpenRouter = async (
         'X-Title': 'Legal AI Assistant'
       },
       body: JSON.stringify({
-        model: 'deepseek/deepseek-r1-0528:free',
+        model: 'deepseek/deepseek-chat-v3.1:free',
         messages,
         temperature: 0.3,
         max_tokens: 2000,
