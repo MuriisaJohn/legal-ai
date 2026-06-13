@@ -1,86 +1,93 @@
-# Welcome to your Lovable project
+# LegalAI Assistant
 
-## Project info
+LegalAI Assistant is a comprehensive, AI-powered platform designed to provide accurate legal research, document analysis, and tailored legal guidance. It empowers both legal professionals and citizens to better understand legal rights and obligations through advanced AI processing and domain-specific expertise.
 
-**URL**: https://lovable.dev/projects/6c658136-10ca-49f7-b0fa-80d343550f1a
+## 🚀 Key Features
 
-## How can I edit this code?
+- **Multi-Country Legal Analysis:** Users can select specific jurisdictions to receive localized legal advice tailored to regional laws and regulations.
+- **Advanced Document Processing:**
+  - **PDF & DOCX Analysis:** Upload and analyze legal documents to extract key insights.
+  - **OCR Support:** Integrated Tesseract.js for extracting text from images and scanned documents.
+- **AI-Powered Chat Interface:** Dynamic chat environment using state-of-the-art models via Gemini.
+- **Voice Mode & TTS:**
+  - **Interactive Voice Chat:** Talk to the AI and receive spoken responses.
+  - **Text-to-Speech (TTS):** Integrated support for ElevenLabs and a custom Google TTS local server.
+- **Enterprise-Grade Security:** Protocols ensuring confidentiality and compliance with legal data standards.
+- **Modern Responsive UI:** Built with shadcn/ui and Tailwind CSS for a seamless experience across all devices.
 
-There are several ways of editing your application.
+## 🛠️ Tech Stack
 
-**Use Lovable**
+- **Frontend:** React 18, TypeScript, Vite
+- **Styling:** Tailwind CSS, shadcn/ui, Lucide Icons
+- **State Management:** Zustand
+- **AI Integration:** Gemini API
+- **Document Extraction:** PDF.js, Mammoth (DOCX), Tesseract.js (OCR)
+- **Visualization:** Three.js (for Audio Visualizers)
+- **Backend (TTS):** Python, Flask, gTTS
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6c658136-10ca-49f7-b0fa-80d343550f1a) and start prompting.
+## 📋 Prerequisites
 
-Changes made via Lovable will be committed automatically to this repo.
+Before you begin, ensure you have the following installed:
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/) or [bun](https://bun.sh/)
+- [Python 3.8+](https://www.python.org/) (optional, for local TTS server)
 
-**Use your preferred IDE**
+## ⚙️ Getting Started
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### 1. Clone the Repository
+```bash
+git clone <repository-url>
+cd legalAI
 ```
 
-**Edit a file directly in GitHub**
+### 2. Install Frontend Dependencies
+```bash
+npm install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 3. Configure Environment Variables
+Create a `.env` file in the root directory:
+```env
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
+```
 
-**Use GitHub Codespaces**
+### 4. (Optional) Setup Local TTS Server
+If you wish to use the local Google TTS service:
+```bash
+# Install Python dependencies
+pip install -r tts_requirements.txt
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Start the TTS server
+python tts_server.py
+```
 
-## What technologies are used for this project?
+### 5. Run the Application
+```bash
+npm run dev
+```
+The application will be available at `http://localhost:5173`.
 
-This project is built with:
+## 🤖 AI Configuration
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+You can customize the AI model used by the application:
+1. Open `src/frontend/services/geminiService.ts`.
+2. Locate the model configuration (defaulting to `gemini-1.5-flash`).
+3. Replace the model identifier with your preferred model (e.g., `gemini-1.5-pro`).
 
-## How can I deploy this project?
+## 📂 Project Structure
 
-Simply open [Lovable](https://lovable.dev/projects/6c658136-10ca-49f7-b0fa-80d343550f1a) and click on Share -> Publish.
+- `src/frontend/components/`: Reusable UI components.
+- `src/frontend/pages/`: Main application views (Chat, VoiceMode, Documents, etc.).
+- `src/frontend/services/`: API integration services (Gemini, TTS, etc.).
+- `src/utils/`: Utility functions for file parsing and data processing.
+- `tts_server.py`: Python-based Flask server for Google TTS functionality.
 
-## Can I connect a custom domain to my Lovable project?
+## 🛡️ Security & Privacy
 
-Yes it is!
+LegalAI processes documents with a focus on security. While the `.env` file might be present in some development environments, it is recommended to use secrets management in production and never commit sensitive keys to public repositories.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 🤝 Contributing
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Contributions are welcome! Please feel free to submit a Pull Request or open an issue for suggestions and bug reports.
 
-## Environment Variables
 
-This project uses environment variables for configuration. Since this is a private repository, the `.env` file is included in version control for team convenience. However, if you need to modify these variables:
-
-1. The main environment file is `.env`
-2. There's also an `.env.example` file showing the required variables
-3. For development, you can create a `.env.local` file which will override `.env` (this file is git-ignored)
-
-Current environment variables:
-- `VITE_OPENROUTER_API_KEY`: Your OpenRouter API key for AI functionality
-
-⚠️ Note: While we keep the .env file in version control for this private repo, be cautious when sharing access to the repository as it contains sensitive information.
