@@ -1,0 +1,40 @@
+useVoiceStream.ts:54 TTS error: Error: Failed to fetch
+    at kyutaiTTSService.ts:22:24
+    at MoshiTTSClient.streamSynthesize (client.ts:65:7)
+    at async streamAudioFromMoshi (kyutaiTTSService.ts:17:3)
+    at async useVoiceStream.ts:27:7
+(anonymous) @ useVoiceStream.ts:54
+client.ts:30  POST http://localhost:5000/synthesize net::ERR_CONNECTION_REFUSED
+(anonymous) @ client.ts:30
+(anonymous) @ kyutaiTTSService.ts:17
+(anonymous) @ useVoiceStream.ts:27
+(anonymous) @ VoiceModePage.tsx:57
+(anonymous) @ client.ts:144
+useVoiceStream.ts:54 TTS error: Error: Failed to fetch
+    at kyutaiTTSService.ts:22:24
+    at MoshiTTSClient.streamSynthesize (client.ts:65:7)
+    at async streamAudioFromMoshi (kyutaiTTSService.ts:17:3)
+    at async useVoiceStream.ts:27:7
+(anonymous) @ useVoiceStream.ts:54
+(anonymous) @ kyutaiTTSService.ts:22
+(anonymous) @ client.ts:65
+await in (anonymous)
+(anonymous) @ kyutaiTTSService.ts:17
+(anonymous) @ useVoiceStream.ts:27
+(anonymous) @ VoiceModePage.tsx:57
+(anonymous) @ client.ts:144
+client.ts:30  POST http://localhost:5000/synthesize net::ERR_CONNECTION_REFUSED
+(anonymous) @ client.ts:30
+(anonymous) @ kyutaiTTSService.ts:17
+(anonymous) @ useVoiceStream.ts:27
+(anonymous) @ VoiceModePage.tsx:57
+(anonymous) @ client.ts:144
+await in (anonymous)
+(anonymous) @ geminiService.ts:79
+(anonymous) @ VoiceModePage.tsx:44
+(anonymous) @ useSpeechRecognition.ts:30
+useVoiceStream.ts:54 TTS error: Error: Failed to fetch
+    at kyutaiTTSService.ts:22:24
+    at MoshiTTSClient.streamSynthesize (client.ts:65:7)
+    at async streamAudioFromMoshi (kyutaiTTSService.ts:17:3)
+    at async useVoiceStream.ts:27:7
