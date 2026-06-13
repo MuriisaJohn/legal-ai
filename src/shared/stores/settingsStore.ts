@@ -17,7 +17,7 @@ export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
       jurisdiction: { code: 'UG', name: 'Uganda' },
-      voiceURI: null,
+      voiceURI: 'Microsoft Mark - English (United States)',
       setJurisdiction: (jurisdiction) => set({ jurisdiction }),
       setVoice: (voiceURI) => set({ voiceURI }),
     }),
