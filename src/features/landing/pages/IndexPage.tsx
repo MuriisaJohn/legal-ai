@@ -56,9 +56,9 @@ const IndexPage = () => {
               Join the future of legal document analysis and legal research.
             </p>
             <div className="flex gap-4 justify-center">
-              <Link to="/register">
+              <Link to="/chat">
                 <Button size="lg" className="bg-white text-legal-primary hover:bg-gray-100 font-semibold">
-                  Register Now
+                  Get Started
                 </Button>
               </Link>
               <Link to="/about">
