@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Keyboard, Mic, MicOff, X, AlertCircle } from 'lucide-react';
+import { Keyboard, Mic, MicOff, X, AlertCircle, ChevronDown, Volume2 } from 'lucide-react';
 import VisualizerScene from './VisualizerScene';
 import { useMicrophone } from '@/features/voice/hooks/useMicrophone';
 import { useAudioPlayback } from '@/features/voice/hooks/useAudioPlayback';
+import { useSettingsStore } from '@/shared/stores/settingsStore';
 
 interface AudioVisualizerProps {
   audioUrl?: string;
@@ -34,7 +35,11 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [isKeyboardMode, setIsKeyboardMode] = useState(false);
   const [frequency, setFrequency] = useState(0);
   const [optimisticListening, setOptimisticListening] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const { voiceURI, setVoice } = useSettingsStore();
   const errorTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const voicePickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setOptimisticListening(isListening);
@@ -51,6 +56,27 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     };
   }, [error, onClearError]);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const loadVoices = () => {
+      const available = speechSynthesis.getVoices();
+      if (available.length > 0) setVoices(available);
+    };
+    loadVoices();
+    speechSynthesis.onvoiceschanged = loadVoices;
+    return () => { speechSynthesis.onvoiceschanged = null; };
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (voicePickerRef.current && !voicePickerRef.current.contains(e.target as Node)) {
+        setVoicePickerOpen(false);
+      }
+    };
+    if (voicePickerOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [voicePickerOpen]);
 
   useMicrophone((optimisticListening || isListening) && !audioUrl, setFrequency);
   useAudioPlayback(currentAudio, isSpeaking && !audioUrl, setFrequency);
@@ -77,6 +103,38 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
+      <div className="absolute top-4 right-4 z-10" ref={voicePickerRef}>
+        <button
+          onClick={() => setVoicePickerOpen(!voicePickerOpen)}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 text-white/80 text-xs hover:bg-white/20 transition-colors border border-white/20"
+        >
+          <Volume2 className="w-3.5 h-3.5" />
+          <span className="max-w-[120px] truncate">
+            {voices.find(v => v.voiceURI === voiceURI)?.name || 'Default Voice'}
+          </span>
+          <ChevronDown className="w-3 h-3" />
+        </button>
+        {voicePickerOpen && (
+          <div className="absolute right-0 mt-2 w-64 max-h-64 overflow-y-auto bg-gray-900/95 backdrop-blur rounded-xl border border-white/20 shadow-xl">
+            <button
+              onClick={() => { setVoice(null); setVoicePickerOpen(false); }}
+              className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/10 ${!voiceURI ? 'text-yellow-400 bg-white/5' : 'text-white/70'}`}
+            >
+              Default Voice
+            </button>
+            {voices.map((v) => (
+              <button
+                key={v.voiceURI}
+                onClick={() => { setVoice(v.voiceURI); setVoicePickerOpen(false); }}
+                className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/10 ${voiceURI === v.voiceURI ? 'text-yellow-400 bg-white/5' : 'text-white/70'}`}
+              >
+                <span className="block truncate">{v.name}</span>
+                <span className="block text-[10px] text-white/40">{v.lang} {v.localService ? '(local)' : '(network)'}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <VisualizerScene frequency={frequency} />
 
       {audioUrl && !audioLoaded && (

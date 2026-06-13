@@ -11,11 +11,12 @@ import AudioVisualizer from '@/features/voice/components/AudioVisualizer';
 const VoiceModePage = () => {
   const navigate = useNavigate();
   const { addMessage, getConversationHistory, setProcessing: setGlobalProcessing } = useMessageStore();
-  const { jurisdiction } = useSettingsStore();
+  const { jurisdiction, voiceURI } = useSettingsStore();
   const [response, setResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const { isSpeaking, currentAudio, streamAudio, interrupt } = useVoiceStream();
+  const { isSpeaking, currentAudio, interrupt, speakChunk, flushBuffer, streamAudio } = useVoiceStream(voiceURI);
   const hasCompletedRef = useRef(false);
+  const streamedPosRef = useRef(0);
 
   const processVoiceInput = useCallback(async (text: string) => {
     if (isProcessing) return;
@@ -23,6 +24,7 @@ const VoiceModePage = () => {
     setGlobalProcessing(true);
     setResponse('');
     hasCompletedRef.current = false;
+    streamedPosRef.current = 0;
 
     addMessage({ content: text, sender: 'user', source: 'voice' });
 
@@ -45,13 +47,20 @@ const VoiceModePage = () => {
       (chunk) => {
         fullResponse += chunk;
         setResponse(fullResponse);
+        const newText = fullResponse.slice(streamedPosRef.current);
+        if (newText.length >= 10) {
+          speakChunk(newText);
+          streamedPosRef.current = fullResponse.length;
+        }
       },
       () => {
         if (hasCompletedRef.current) return;
         hasCompletedRef.current = true;
+        const remaining = fullResponse.slice(streamedPosRef.current);
+        if (remaining.trim()) speakChunk(remaining);
+        flushBuffer();
         setIsProcessing(false);
         setGlobalProcessing(false);
-
         if (fullResponse.trim()) {
           addMessage({ content: fullResponse, sender: 'ai', source: 'voice' });
           streamAudio(fullResponse);
@@ -69,7 +78,7 @@ const VoiceModePage = () => {
         streamAudio(errMsg);
       }
     );
-  }, [addMessage, getConversationHistory, jurisdiction, streamAudio, setGlobalProcessing, isProcessing]);
+  }, [addMessage, getConversationHistory, jurisdiction, speakChunk, flushBuffer, streamAudio, setGlobalProcessing, isProcessing]);
 
   const { isListening, error, startListening, stopListening, clearError } = useSpeechRecognition(processVoiceInput);
 
